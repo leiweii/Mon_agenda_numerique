@@ -40,7 +40,7 @@
 
 ### 1. Cloner le projet
 ```bash
-git clone https://github.com/votre-username/mon-agenda-numerique.git
+git clone https://github.com/leiweii/Mon_agenda_numerique.git
 cd mon-agenda-numerique
 ```
 
