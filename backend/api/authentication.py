@@ -17,6 +17,16 @@ class RegistrationRateThrottle(AnonRateThrottle):
     scope = 'registration'
 
 
+class LoginRateThrottle(AnonRateThrottle):
+    scope = 'login'
+
+    def parse_rate(self, rate):
+        if rate and rate.endswith('min'):
+            requests, period = rate.split('/', 1)
+            return int(requests), int(period.removesuffix('min')) * 60
+        return super().parse_rate(rate)
+
+
 def generate_username(email):
     username_field = User._meta.get_field('username')
     max_length = username_field.max_length
@@ -47,6 +57,7 @@ def user_response(user, status_code=status.HTTP_200_OK):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     identifier = request.data.get('identifier') or request.data.get('username')
     password = request.data.get('password')

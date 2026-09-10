@@ -48,6 +48,33 @@ class AuthenticationEndpointsTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data, {'error': 'Identifiants invalides'})
 
+    def test_login_uses_the_same_error_for_an_unknown_identifier(self):
+        wrong_password_response = self.client.post(
+            '/api/auth/login/',
+            {'identifier': 'alice', 'password': 'wrong-password'},
+            format='json',
+        )
+        unknown_identifier_response = self.client.post(
+            '/api/auth/login/',
+            {'identifier': 'inconnu@example.com', 'password': 'wrong-password'},
+            format='json',
+        )
+
+        self.assertEqual(wrong_password_response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(unknown_identifier_response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(wrong_password_response.data, unknown_identifier_response.data)
+
+    def test_login_limits_anonymous_failed_attempts(self):
+        payload = {'identifier': 'alice', 'password': 'wrong-password'}
+
+        for _ in range(5):
+            response = self.client.post('/api/auth/login/', payload, format='json')
+            self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = self.client.post('/api/auth/login/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
     def test_register_uses_email_confirmation_and_creates_a_hashed_password(self):
         response = self.client.post(
             '/api/auth/register/',
