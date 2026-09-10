@@ -129,8 +129,9 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - Endpoints token, invalidation de session et contexte/formulaire React couverts par `backend/api/tests.py`, `AuthContext.test.jsx` et `Login.test.jsx`.
 
 ### Autres
-- [~] Interface responsive (mobile/tablette/desktop)
-  - Drawer et grilles responsives dans `App.js` et les composants; validation multi-format et tests absents.
+- [x] Interface responsive (mobile/tablette/desktop)
+  - `Home.jsx`, `Parametres.jsx` et `Dashboard.jsx` utilisent l'API Grid de MUI 7.3.7 (`size` pour xs/sm/md), testée pour mobile, tablette et desktop; le padding du layout est adapté au mobile.
+  - Hors périmètre : `components/Taches/` et `components/Categories/` utilisent encore l'ancienne API Grid (`item`, `xs`, `sm`, `md`) supprimée par MUI v7 et devront être migrés dans une tâche dédiée.
 
 ---
 

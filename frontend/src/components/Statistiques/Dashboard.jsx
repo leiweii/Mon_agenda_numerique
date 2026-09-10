@@ -114,7 +114,7 @@ const Dashboard = () => {
 
       {/* Cartes de statistiques */}
       <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total de tâches"
             value={stats?.total || 0}
@@ -123,7 +123,7 @@ const Dashboard = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Terminées"
             value={stats?.completees || 0}
@@ -133,7 +133,7 @@ const Dashboard = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="En cours"
             value={stats?.en_cours || 0}
@@ -142,7 +142,7 @@ const Dashboard = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Aujourd'hui"
             value={tachesAujourdhui.length}
@@ -170,7 +170,7 @@ const Dashboard = () => {
 
       <Grid container spacing={3}>
         {/* Graphique des priorités */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Répartition par priorité
@@ -180,7 +180,7 @@ const Dashboard = () => {
         </Grid>
 
         {/* Progression hebdomadaire */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Progression de la semaine
@@ -227,7 +227,7 @@ const Dashboard = () => {
         </Grid>
 
         {/* Tâches urgentes */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               🔥 Tâches prioritaires aujourd'hui
@@ -246,7 +246,7 @@ const Dashboard = () => {
                   .sort((a, b) => b.priorite - a.priorite)
                   .slice(0, 3)
                   .map((tache) => (
-                    <Grid item xs={12} md={4} key={tache.id}>
+                    <Grid size={{ xs: 12, md: 4 }} key={tache.id}>
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h6">

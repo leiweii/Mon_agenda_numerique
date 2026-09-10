@@ -3,6 +3,11 @@ import { render, screen } from '@testing-library/react';
 import Dashboard from './Dashboard';
 import { tachesAPI } from '../../services/api';
 
+jest.mock('@mui/material', () => ({
+  ...jest.requireActual('@mui/material'),
+  Grid: ({ children, size }) => <div data-grid-size={JSON.stringify(size)}>{children}</div>,
+}));
+
 jest.mock('../../services/api', () => ({
   tachesAPI: {
     getStatistiques: jest.fn(),
@@ -56,4 +61,12 @@ test('displays a clear error when statistics cannot be loaded', async () => {
   render(<Dashboard />);
 
   expect(await screen.findByText('Impossible de charger les statistiques.')).toBeInTheDocument();
+});
+
+test('uses MUI v7 breakpoint sizes for dashboard cards and panels', async () => {
+  const { container } = render(<Dashboard />);
+
+  await screen.findByText('Graphique de priorité : 4 niveaux');
+  expect(container.querySelectorAll('[data-grid-size="{\\"xs\\":12,\\"sm\\":6,\\"md\\":3}"]')).toHaveLength(4);
+  expect(container.querySelectorAll('[data-grid-size="{\\"xs\\":12,\\"md\\":6}"]')).toHaveLength(2);
 });

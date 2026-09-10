@@ -110,7 +110,7 @@ const Parametres = ({ onThemeChange }) => {
 
       <Grid container spacing={3}>
         {/* Profil */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card>
             <CardContent>
               <Box textAlign="center">
@@ -138,7 +138,7 @@ const Parametres = ({ onThemeChange }) => {
         </Grid>
 
         {/* Préférences */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3 }}>
             {/* Heures productives */}
             <Box mb={4}>
@@ -149,7 +149,7 @@ const Parametres = ({ onThemeChange }) => {
                 </Typography>
               </Box>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Heure de début"
@@ -159,7 +159,7 @@ const Parametres = ({ onThemeChange }) => {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Heure de fin"
@@ -227,13 +227,14 @@ const Parametres = ({ onThemeChange }) => {
             <Divider sx={{ my: 3 }} />
 
             {/* Bouton de sauvegarde */}
-            <Box textAlign="right">
+            <Box textAlign={{ xs: 'stretch', sm: 'right' }}>
               <Button
                 variant="contained"
                 startIcon={<SaveIcon />}
                 onClick={handleSave}
                 size="large"
                 disabled={saving}
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
                 {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
               </Button>
@@ -242,13 +243,13 @@ const Parametres = ({ onThemeChange }) => {
         </Grid>
 
         {/* Statistiques du compte */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" fontWeight="bold" gutterBottom>
               📈 Statistiques du compte
             </Typography>
             <Grid container spacing={2} mt={1}>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box textAlign="center" p={2} bgcolor="primary.lighter" borderRadius={2}>
                   <Typography variant="h4" fontWeight="bold" color="primary">
                     {Math.floor(Math.random() * 50) + 20}
@@ -258,7 +259,7 @@ const Parametres = ({ onThemeChange }) => {
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box textAlign="center" p={2} bgcolor="success.lighter" borderRadius={2}>
                   <Typography variant="h4" fontWeight="bold" color="success.main">
                     {Math.floor(Math.random() * 100) + 50}
@@ -268,7 +269,7 @@ const Parametres = ({ onThemeChange }) => {
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box textAlign="center" p={2} bgcolor="warning.lighter" borderRadius={2}>
                   <Typography variant="h4" fontWeight="bold" color="warning.main">
                     {Math.floor(Math.random() * 20) + 5}
