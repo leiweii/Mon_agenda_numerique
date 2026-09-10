@@ -41,21 +41,13 @@ const TacheListe = () => {
   };
 
   const handleCreate = async (data) => {
-    try {
-      await tachesAPI.create(data);
-      chargerDonnees();
-    } catch (error) {
-      console.error('Erreur de création:', error);
-    }
+    await tachesAPI.create(data);
+    await chargerDonnees();
   };
 
   const handleUpdate = async (id, data) => {
-    try {
-      await tachesAPI.update(id, data);
-      chargerDonnees();
-    } catch (error) {
-      console.error('Erreur de mise à jour:', error);
-    }
+    await tachesAPI.update(id, data);
+    await chargerDonnees();
   };
 
   const handleDelete = async (id) => {

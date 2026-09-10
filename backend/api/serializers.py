@@ -9,6 +9,12 @@ class CategorieSerializer(serializers.ModelSerializer):
 
 class TacheSerializer(serializers.ModelSerializer):
     categorie_nom = serializers.CharField(source='categorie.nom', read_only=True)
+
+    def validate_categorie(self, categorie):
+        request = self.context.get('request')
+        if categorie and request and categorie.utilisateur != request.user:
+            raise serializers.ValidationError('Cette catégorie ne vous appartient pas.')
+        return categorie
     
     class Meta:
         model = Tache

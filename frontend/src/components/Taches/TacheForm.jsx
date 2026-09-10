@@ -13,6 +13,7 @@ import {
   Grid,
   Box,
   Typography,
+  Alert,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -35,6 +36,8 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
     emoji: '📝',
     categorie: '',
   });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (tache) {
@@ -63,9 +66,17 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
     setFormData({ ...formData, date_echeance: newDate });
   };
 
-  const handleSubmit = () => {
-    onSubmit(formData);
-    onClose();
+  const handleSubmit = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      await onSubmit(formData);
+      onClose();
+    } catch (submitError) {
+      setError("Impossible d'enregistrer la tâche.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,6 +86,7 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
       </DialogTitle>
       
       <DialogContent>
+        {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
         <Grid container spacing={3} sx={{ mt: 1 }}>
           {/* Titre */}
           <Grid item xs={12}>
@@ -193,8 +205,8 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
 
       <DialogActions>
         <Button onClick={onClose}>Annuler</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          {tache ? 'Modifier' : 'Créer'}
+        <Button onClick={handleSubmit} variant="contained" color="primary" disabled={saving}>
+          {saving ? 'Enregistrement...' : tache ? 'Modifier' : 'Créer'}
         </Button>
       </DialogActions>
     </Dialog>

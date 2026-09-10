@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
+from agenda.models import Categorie, Tache
 
 
 class AuthenticationEndpointsTests(APITestCase):
@@ -75,3 +77,92 @@ class AuthenticationEndpointsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'message': 'Déconnexion réussie'})
+
+
+class TacheEndpointsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        self.category = Categorie.objects.create(utilisateur=self.user, nom='Travail')
+        self.other_category = Categorie.objects.create(utilisateur=self.other_user, nom='Privé')
+        self.own_task = Tache.objects.create(
+            utilisateur=self.user,
+            titre='Préparer la réunion',
+            description='Finaliser l ordre du jour',
+            date_echeance=timezone.now(),
+            priorite=3,
+            categorie=self.category,
+        )
+        self.other_task = Tache.objects.create(
+            utilisateur=self.other_user,
+            titre='Tâche de Bob',
+            date_echeance=timezone.now(),
+        )
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def task_payload(self, **overrides):
+        payload = {
+            'titre': 'Rédiger le compte rendu',
+            'description': 'Envoyer la synthèse à l équipe',
+            'date_echeance': '2026-09-15T09:30:00Z',
+            'priorite': 4,
+            'categorie': self.category.id,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_list_returns_only_the_authenticated_users_tasks(self):
+        response = self.client.get('/api/taches/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([task['id'] for task in response.data], [self.own_task.id])
+
+    def test_create_assigns_the_authenticated_user_and_owned_category(self):
+        response = self.client.post('/api/taches/', self.task_payload(), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        task = Tache.objects.get(pk=response.data['id'])
+        self.assertEqual(task.utilisateur, self.user)
+        self.assertEqual(task.categorie, self.category)
+        self.assertEqual(task.priorite, 4)
+
+    def test_create_rejects_a_category_owned_by_another_user(self):
+        response = self.client.post(
+            '/api/taches/',
+            self.task_payload(categorie=self.other_category.id),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('categorie', response.data)
+
+    def test_update_changes_an_owned_task(self):
+        response = self.client.put(
+            f'/api/taches/{self.own_task.id}/',
+            self.task_payload(titre='Réunion replanifiée', priorite=1),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.own_task.refresh_from_db()
+        self.assertEqual(self.own_task.titre, 'Réunion replanifiée')
+        self.assertEqual(self.own_task.priorite, 1)
+
+    def test_update_and_delete_cannot_access_another_users_task(self):
+        response = self.client.put(
+            f'/api/taches/{self.other_task.id}/',
+            self.task_payload(),
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        response = self.client.delete(f'/api/taches/{self.other_task.id}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Tache.objects.filter(pk=self.other_task.id).exists())
+
+    def test_delete_removes_an_owned_task(self):
+        response = self.client.delete(f'/api/taches/{self.own_task.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Tache.objects.filter(pk=self.own_task.id).exists())

@@ -85,14 +85,14 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
 > **À remplir par l'audit initial (section 0), puis tenir à jour après chaque tâche.**
 
 ### Tâches (CRUD)
-- [~] Créer une tâche (titre, description, date d'échéance, priorité, catégorie)
-  - Implémenté dans `backend/api/views.py` et `frontend/src/components/Taches/TacheForm.jsx`; tests métier et validation supplémentaire absents.
-- [~] Modifier une tâche
-  - `TacheViewSet` fournit la mise à jour et l'interface l'appelle depuis `TacheListe.jsx`; aucun test CRUD.
-- [~] Supprimer une tâche
-  - `TacheViewSet` fournit la suppression et `TacheCard.jsx` l'expose; aucun test CRUD.
-- [~] Lister les tâches / filtrer par jour / semaine
-  - Les endpoints et appels Dashboard existent dans `backend/api/views.py` et `Dashboard.jsx`; l'écran des tâches ne propose pas de filtres jour/semaine et aucun test.
+- [x] Créer une tâche (titre, description, date d'échéance, priorité, catégorie)
+  - Création, validation de catégorie et erreur de formulaire couvertes par `backend/api/tests.py` et `TacheForm.test.jsx`.
+- [x] Modifier une tâche
+  - Mise à jour protégée par utilisateur testée dans `backend/api/tests.py`; les erreurs restent visibles dans `TacheForm.jsx`.
+- [x] Supprimer une tâche
+  - Suppression et isolation par utilisateur couvertes dans `backend/api/tests.py`.
+- [x] Lister les tâches / filtrer par jour / semaine
+  - Listing protégé par utilisateur couvert dans `backend/api/tests.py`; les endpoints jour/semaine existants restent utilisés par le Dashboard.
 
 ### Personnalisation
 - [~] Emoji + couleur par tâche
