@@ -31,7 +31,7 @@ def login_view(request):
 
 @api_view(['POST'])
 def logout_view(request):
-    request.user.auth_token.delete()
+    Token.objects.filter(user=request.user).delete()
     return Response({'message': 'Déconnexion réussie'})
 
 @api_view(['GET'])

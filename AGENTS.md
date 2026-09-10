@@ -125,8 +125,8 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - Interrupteur et champ de préférence présents, mais aucune notification réelle ni test.
 
 ### Auth
-- [~] Login / logout / utilisateur courant (token auth)
-  - Endpoints token et contexte React présents; le logout front ne contacte pas l'API et aucun test n'existe.
+- [x] Login / logout / utilisateur courant (token auth)
+  - Endpoints token, invalidation de session et contexte/formulaire React couverts par `backend/api/tests.py`, `AuthContext.test.jsx` et `Login.test.jsx`.
 
 ### Autres
 - [~] Interface responsive (mobile/tablette/desktop)
