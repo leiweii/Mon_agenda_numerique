@@ -150,14 +150,14 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - `anthropic==1.4.0` est installé dans le venv et épinglé dans `backend/requirements.txt`.
 
 ### 5.2 Service `backend/api/llm_service.py`
-- [ ] `construire_prompt(taches, preferences)` — prompt structuré, réponse JSON stricte
-  - Fichier `backend/api/llm_service.py` absent.
-- [ ] Nettoyage/validation des données injectées (anti-injection, troncature)
-  - Aucun service LLM trouvé.
-- [ ] `appeler_llm(prompt)` — timeout + retries
-  - Aucun service LLM trouvé.
-- [ ] `parser_reponse(texte_llm)` — parsing JSON + fallback + logging si format invalide
-  - Aucun service LLM trouvé.
+- [x] `construire_prompt(taches, preferences)` — prompt structuré, réponse JSON stricte
+  - `api/llm_service.py` impose le contrat JSON, utilise `claude-haiku-4-5-20251001` et limite la sortie à 256 tokens.
+- [x] Nettoyage/validation des données injectées (anti-injection, troncature)
+  - Les caractères de contrôle sont retirés; les champs de tâches et préférences sont normalisés, bornés et placés comme données non fiables entre balises.
+- [x] `appeler_llm(prompt)` — timeout + retries
+  - Délai de 10 secondes et au plus deux tentatives; seuls timeout, connexion, rate limit et 5xx sont rejoués. Les logs ne contiennent que tentative, durée, statut et longueur du prompt.
+- [x] `parser_reponse(texte_llm)` — parsing JSON + fallback + logging si format invalide
+  - JSON brut ou balisé validé contre le contrat (heures uniques 0-23, maximum trois, message non vide); tout format invalide retourne `None` et journalise uniquement le motif, afin que la future vue active le fallback métier.
 
 ### 5.3 Endpoint Django
 - [ ] `RecommandationIAView` dans `backend/api/views.py`

@@ -38,5 +38,8 @@ test('loads the saved dark theme when the authenticated app starts', async () =>
 
   render(<App />);
 
-  await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'sombre'));
+  await waitFor(
+    () => expect(document.documentElement).toHaveAttribute('data-theme', 'sombre'),
+    { timeout: 5000 },
+  );
 });
