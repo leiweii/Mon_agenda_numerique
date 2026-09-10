@@ -142,12 +142,12 @@ recommandations générées par LLM (priorisation, résumé hebdomadaire, détec
 surcharge), à partir des tâches/catégories/préférences existantes.
 
 ### 5.1 Config & sécurité
-- [ ] `LLM_API_KEY` dans `.env`, jamais exposée côté React
-  - Aucune configuration LLM trouvée.
-- [ ] `LLM_API_KEY` chargée dans `backend/backend/settings.py` via `python-decouple`
-  - `settings.py` charge uniquement la configuration de base de données.
-- [ ] SDK installé (`pip install anthropic`) et ajouté à `requirements.txt`
-  - `backend/requirements.txt` ne contient pas `anthropic`.
+- [x] `LLM_API_KEY` dans `.env`, jamais exposée côté React
+  - `backend/.env` (ignoré par Git) contient la variable vide à renseigner localement; aucun code frontend ne la lit.
+- [x] `LLM_API_KEY` chargée dans `backend/backend/settings.py` via `python-decouple`
+  - `settings.py` charge la valeur côté serveur avec une valeur vide par défaut.
+- [x] SDK installé (`pip install anthropic`) et ajouté à `requirements.txt`
+  - `anthropic==1.4.0` est installé dans le venv et épinglé dans `backend/requirements.txt`.
 
 ### 5.2 Service `backend/api/llm_service.py`
 - [ ] `construire_prompt(taches, preferences)` — prompt structuré, réponse JSON stricte

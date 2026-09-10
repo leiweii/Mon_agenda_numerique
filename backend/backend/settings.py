@@ -79,6 +79,9 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 from decouple import config  
+
+LLM_API_KEY = config('LLM_API_KEY', default='')
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
