@@ -15,14 +15,13 @@ import {
   CheckCircle,
   Schedule,
   Warning,
-  EmojiEvents,
 } from '@mui/icons-material';
 import GraphiquesPriorite from './GraphiquesPriorite';
+import RecommandationsIA from '../RecommandationsIA';
 import { tachesAPI } from '../../services/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
-  const [meilleurMoment, setMeilleurMoment] = useState(null);
   const [tachesAujourdhui, setTachesAujourdhui] = useState([]);
   const [tachesSemaine, setTachesSemaine] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,15 +34,13 @@ const Dashboard = () => {
   const chargerStatistiques = async () => {
     setError('');
     try {
-      const [statsRes, momentRes, jourRes, semaineRes] = await Promise.all([
+      const [statsRes, jourRes, semaineRes] = await Promise.all([
         tachesAPI.getStatistiques(),
-        tachesAPI.getMeilleurMoment(),
         tachesAPI.getAujourdhui(),
         tachesAPI.getCetteSemaine(),
       ]);
       
       setStats(statsRes.data);
-      setMeilleurMoment(momentRes.data);
       setTachesAujourdhui(jourRes.data);
       setTachesSemaine(semaineRes.data);
     } catch (error) {
@@ -152,21 +149,9 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Recommandation meilleur moment */}
-      {meilleurMoment?.heures_recommandees && (
-        <Alert 
-          icon={<EmojiEvents />} 
-          severity="info" 
-          sx={{ mb: 4, fontSize: '1rem' }}
-        >
-          <Typography variant="subtitle1" fontWeight="bold">
-            💡 {meilleurMoment.message}
-          </Typography>
-          <Typography variant="body2">
-            Heures optimales : {meilleurMoment.heures_recommandees.map(h => `${h}h`).join(', ')}
-          </Typography>
-        </Alert>
-      )}
+      <Box mb={4}>
+        <RecommandationsIA />
+      </Box>
 
       <Grid container spacing={3}>
         {/* Graphique des priorités */}

@@ -177,16 +177,16 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - Journaux de métadonnées hachées, durée/statut/cache hit/type d'erreur et purge probabiliste après 30 jours.
 
 ### 5.5 Frontend
-- [ ] `frontend/src/components/RecommandationsIA.jsx`
-  - Composant absent.
-- [ ] Appel via `frontend/src/services/api.js`
-  - Aucun client d'endpoint IA.
-- [ ] État de chargement (skeleton/spinner)
-  - Aucun composant IA.
-- [ ] Gestion des erreurs (message clair si échec)
-  - Aucun composant IA.
-- [ ] Intégration dans le Dashboard
-  - `Dashboard.jsx` n'utilise que `meilleur_moment` à règles simples.
+- [x] `frontend/src/components/RecommandationsIA.jsx`
+  - Composant autonome affichant le message et les heures de `/api/taches/recommandation_ia/`.
+- [x] Appel via `frontend/src/services/api.js`
+  - `tachesAPI.getRecommandationIA()` appelle l'endpoint authentifié existant.
+- [x] État de chargement (skeleton/spinner)
+  - Skeleton MUI affiché pendant la récupération de la recommandation.
+- [x] Gestion des erreurs (message clair si échec)
+  - Alerte claire et bouton de réessai sans bloquer les statistiques du Dashboard.
+- [x] Intégration dans le Dashboard
+  - Le composant est affiché dans `components/Statistiques/Dashboard.jsx` à la place de l'ancien encart de règles.
 
 ### 5.6 Tests
 - [ ] Backend : mock de l'appel LLM, test du parsing, test du fallback

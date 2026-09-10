@@ -34,6 +34,7 @@ export const tachesAPI = {
   getCetteSemaine: () => api.get('taches/cette_semaine/'),
   getStatistiques: () => api.get('taches/statistiques/'),
   getMeilleurMoment: () => api.get('taches/meilleur_moment/'),
+  getRecommandationIA: () => api.get('taches/recommandation_ia/'),
 };
 
 // Services pour les catégories

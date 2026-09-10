@@ -21,6 +21,8 @@ jest.mock('./GraphiquesPriorite', () => ({ data }) => (
   <div>Graphique de priorité : {data.length} niveaux</div>
 ));
 
+jest.mock('../RecommandationsIA', () => () => <div>Recommandation IA intégrée</div>);
+
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -38,7 +40,6 @@ beforeEach(() => {
       ],
     },
   });
-  tachesAPI.getMeilleurMoment.mockResolvedValue({ data: {} });
   tachesAPI.getAujourdhui.mockResolvedValue({ data: [] });
   tachesAPI.getCetteSemaine.mockResolvedValue({ data: [] });
 });
@@ -69,4 +70,10 @@ test('uses MUI v7 breakpoint sizes for dashboard cards and panels', async () => 
   await screen.findByText('Graphique de priorité : 4 niveaux');
   expect(container.querySelectorAll('[data-grid-size="{\\"xs\\":12,\\"sm\\":6,\\"md\\":3}"]')).toHaveLength(4);
   expect(container.querySelectorAll('[data-grid-size="{\\"xs\\":12,\\"md\\":6}"]')).toHaveLength(2);
+});
+
+test('intègre le composant de recommandation IA au dashboard', async () => {
+  render(<Dashboard />);
+
+  expect(await screen.findByText('Recommandation IA intégrée')).toBeInTheDocument();
 });
