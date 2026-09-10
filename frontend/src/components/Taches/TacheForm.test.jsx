@@ -70,3 +70,36 @@ test('submits the selected category identifier with a task', async () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ categorie: 12 }));
   });
 });
+
+test('submits a custom colour, emoji and urgent priority', async () => {
+  const onSubmit = jest.fn().mockResolvedValue();
+
+  render(
+    <TacheForm
+      open
+      onClose={jest.fn()}
+      onSubmit={onSubmit}
+      tache={null}
+      categories={[]}
+    />
+  );
+
+  fireEvent.change(screen.getByLabelText(/Titre/), {
+    target: { value: 'Préparer la présentation' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Emoji 🎯' }));
+  fireEvent.change(screen.getByLabelText('Couleur personnalisée'), {
+    target: { value: '#1a2b3c' },
+  });
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Priorité' }));
+  fireEvent.click(screen.getByRole('option', { name: '🔴 Urgente' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Créer' }));
+
+  await waitFor(() => {
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      emoji: '🎯',
+      couleur: '#1a2b3c',
+      priorite: 4,
+    }));
+  });
+});

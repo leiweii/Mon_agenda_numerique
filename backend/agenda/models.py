@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import RegexValidator
 
 class Tache(models.Model):
     PRIORITE_CHOICES = [
@@ -16,7 +16,11 @@ class Tache(models.Model):
     date_creation = models.DateTimeField(auto_now_add=True)
     date_echeance = models.DateTimeField()
     priorite = models.IntegerField(choices=PRIORITE_CHOICES, default=2)
-    couleur = models.CharField(max_length=7, default='#3498db')  # Format hex
+    couleur = models.CharField(
+        max_length=7,
+        default='#3498db',
+        validators=[RegexValidator(r'^#[0-9A-Fa-f]{6}$', 'Utilisez une couleur au format #RRGGBB.')],
+    )
     emoji = models.CharField(max_length=10, default='📝')
     completee = models.BooleanField(default=False)
     categorie = models.ForeignKey('Categorie', on_delete=models.SET_NULL, null=True, blank=True)

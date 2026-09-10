@@ -96,6 +96,7 @@ const TacheCard = ({ tache, onUpdate, onDelete, onEdit }) => {
           <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
             <Chip
               label={getPrioriteLabel(tache.priorite)}
+              aria-label={`Priorité ${getPrioriteLabel(tache.priorite)}`}
               size="small"
               sx={{
                 bgcolor: getPrioriteColor(tache.priorite),

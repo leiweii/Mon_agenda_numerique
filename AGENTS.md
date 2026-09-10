@@ -95,12 +95,12 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - `/api/taches/aujourd_hui/` et `/api/taches/cette_semaine/` filtrent la date locale et la semaine ISO (lundi-dimanche) ; le sélecteur de `TacheListe.jsx` et ses tests couvrent les deux vues.
 
 ### Personnalisation
-- [~] Emoji + couleur par tâche
-  - Champs modèle et sélecteurs dans `TacheForm.jsx` présents; validation et tests absents.
+- [x] Emoji + couleur par tâche
+  - Validation `#RRGGBB`, sélecteurs emoji/palette/color picker et persistance API couverts par les tests.
 - [x] Catégories personnalisées (CRUD)
   - CRUD isolé par utilisateur, formulaire React et attribution à une tâche couverts par les tests ; supprimer une catégorie conserve les tâches avec `categorie=null`.
-- [~] Système de priorités (4 niveaux)
-  - Les quatre choix sont définis dans `backend/agenda/models.py` et affichés côté React; aucun test.
+- [x] Système de priorités (4 niveaux)
+  - Les niveaux Basse, Moyenne, Haute et Urgente sont validés par Django, sélectionnables dans le formulaire et affichés par un chip coloré testé.
 
 ### Dashboard & statistiques
 - [~] Total de tâches / taux de complétion

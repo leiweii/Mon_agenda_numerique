@@ -138,6 +138,29 @@ class TacheEndpointsTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('categorie', response.data)
 
+    def test_create_persists_task_emoji_colour_and_urgent_priority(self):
+        response = self.client.post(
+            '/api/taches/',
+            self.task_payload(emoji='🎯', couleur='#1a2b3c', priorite=4),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        task = Tache.objects.get(pk=response.data['id'])
+        self.assertEqual(task.emoji, '🎯')
+        self.assertEqual(task.couleur, '#1a2b3c')
+        self.assertEqual(task.priorite, 4)
+
+    def test_create_rejects_a_task_with_an_invalid_colour(self):
+        response = self.client.post(
+            '/api/taches/',
+            self.task_payload(couleur='blue'),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('couleur', response.data)
+
     def test_update_changes_an_owned_task(self):
         response = self.client.put(
             f'/api/taches/{self.own_task.id}/',

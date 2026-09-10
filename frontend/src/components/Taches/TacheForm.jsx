@@ -126,8 +126,9 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
           {/* Priorité */}
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
-              <InputLabel>Priorité</InputLabel>
+              <InputLabel id="priorite-label">Priorité</InputLabel>
               <Select
+                labelId="priorite-label"
                 value={formData.priorite}
                 onChange={handleChange('priorite')}
                 label="Priorité"
@@ -171,6 +172,7 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
                   key={emoji}
                   variant={formData.emoji === emoji ? 'contained' : 'outlined'}
                   onClick={() => setFormData({ ...formData, emoji })}
+                  aria-label={`Emoji ${emoji}`}
                   sx={{ minWidth: 50, fontSize: 24 }}
                 >
                   {emoji}
@@ -185,11 +187,19 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
               Couleur
             </Typography>
             <Box display="flex" gap={1} flexWrap="wrap">
+              <input
+                aria-label="Couleur personnalisée"
+                type="color"
+                value={formData.couleur}
+                onChange={handleChange('couleur')}
+                style={{ width: 50, height: 50, padding: 0, border: 'none' }}
+              />
               {COULEURS_POPULAIRES.map((couleur) => (
                 <Button
                   key={couleur}
                   variant={formData.couleur === couleur ? 'contained' : 'outlined'}
                   onClick={() => setFormData({ ...formData, couleur })}
+                  aria-label={`Couleur ${couleur}`}
                   sx={{
                     minWidth: 50,
                     height: 50,
