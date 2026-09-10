@@ -42,7 +42,14 @@ class TacheViewSet(viewsets.ModelViewSet):
     def statistiques(self, request):
         total = self.get_queryset().count()
         completees = self.get_queryset().filter(completee=True).count()
-        par_priorite = self.get_queryset().values('priorite').annotate(count=Count('id'))
+        comptes_priorite = {
+            item['priorite']: item['count']
+            for item in self.get_queryset().values('priorite').annotate(count=Count('id'))
+        }
+        par_priorite = [
+            {'priorite': priorite, 'count': comptes_priorite.get(priorite, 0)}
+            for priorite in range(1, 5)
+        ]
         
         return Response({
             'total': total,

@@ -26,12 +26,14 @@ const Dashboard = () => {
   const [tachesAujourdhui, setTachesAujourdhui] = useState([]);
   const [tachesSemaine, setTachesSemaine] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     chargerStatistiques();
   }, []);
 
   const chargerStatistiques = async () => {
+    setError('');
     try {
       const [statsRes, momentRes, jourRes, semaineRes] = await Promise.all([
         tachesAPI.getStatistiques(),
@@ -46,6 +48,7 @@ const Dashboard = () => {
       setTachesSemaine(semaineRes.data);
     } catch (error) {
       console.error('Erreur chargement stats:', error);
+      setError('Impossible de charger les statistiques.');
     } finally {
       setLoading(false);
     }
@@ -91,6 +94,10 @@ const Dashboard = () => {
         <LinearProgress />
       </Box>
     );
+  }
+
+  if (error) {
+    return <Alert severity="error">{error}</Alert>;
   }
 
   return (

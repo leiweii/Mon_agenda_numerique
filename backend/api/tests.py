@@ -313,3 +313,53 @@ class CategorieEndpointsTests(APITestCase):
         self.assertTrue(Tache.objects.filter(pk=task.id).exists())
         task.refresh_from_db()
         self.assertIsNone(task.categorie)
+
+
+class StatistiquesEndpointsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def create_task(self, priorite, completee=False, utilisateur=None):
+        return Tache.objects.create(
+            utilisateur=utilisateur or self.user,
+            titre=f'Tâche priorité {priorite}',
+            date_echeance=timezone.now(),
+            priorite=priorite,
+            completee=completee,
+        )
+
+    def test_statistiques_returns_totals_and_all_four_priorities_for_the_user(self):
+        self.create_task(1, completee=True)
+        self.create_task(3)
+        self.create_task(3)
+        self.create_task(4, completee=True, utilisateur=self.other_user)
+
+        response = self.client.get('/api/taches/statistiques/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total'], 3)
+        self.assertEqual(response.data['completees'], 1)
+        self.assertEqual(response.data['en_cours'], 2)
+        self.assertAlmostEqual(response.data['taux_completion'], 100 / 3)
+        self.assertEqual(response.data['par_priorite'], [
+            {'priorite': 1, 'count': 1},
+            {'priorite': 2, 'count': 0},
+            {'priorite': 3, 'count': 2},
+            {'priorite': 4, 'count': 0},
+        ])
+
+    def test_statistiques_returns_zero_counts_for_an_empty_task_list(self):
+        response = self.client.get('/api/taches/statistiques/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total'], 0)
+        self.assertEqual(response.data['taux_completion'], 0)
+        self.assertEqual(response.data['par_priorite'], [
+            {'priorite': 1, 'count': 0},
+            {'priorite': 2, 'count': 0},
+            {'priorite': 3, 'count': 0},
+            {'priorite': 4, 'count': 0},
+        ])

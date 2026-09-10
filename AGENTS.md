@@ -103,12 +103,12 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - Les niveaux Basse, Moyenne, Haute et Urgente sont validés par Django, sélectionnables dans le formulaire et affichés par un chip coloré testé.
 
 ### Dashboard & statistiques
-- [~] Total de tâches / taux de complétion
-  - Calcul API et cartes Dashboard présents dans `backend/api/views.py` et `Dashboard.jsx`; aucun test.
-- [~] Graphiques de priorités (Recharts)
-  - Camembert implémenté dans `frontend/src/components/Statistiques/GraphiquesPriorite.jsx`; aucun test.
-- [~] Endpoint `GET /api/taches/statistiques/`
-  - Action DRF `statistiques` présente dans `backend/api/views.py`; aucun test d'endpoint.
+- [x] Total de tâches / taux de complétion
+  - Les calculs isolés par utilisateur et les cartes Dashboard sont couverts par les tests backend et frontend.
+- [x] Graphiques de priorités (Recharts)
+  - `GraphiquesPriorite.jsx` reçoit les quatre priorités normalisées et son rendu/état vide sont testés.
+- [x] Endpoint `GET /api/taches/statistiques/`
+  - L'action retourne total, complétées, en cours, taux et `[{'priorite': 1..4, 'count': n}]`, y compris les zéros.
 
 ### Recommandations
 - [~] Endpoint `GET /api/taches/meilleur_moment/` (règles simples actuelles)
