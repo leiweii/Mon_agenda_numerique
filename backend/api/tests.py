@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from unittest.mock import patch
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -484,5 +485,75 @@ class MeilleurMomentEndpointTests(APITestCase):
         self.client.credentials()
 
         response = self.client.get('/api/taches/meilleur_moment/')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class RecommandationIAEndpointTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        self.user_task = Tache.objects.create(
+            utilisateur=self.user,
+            titre='Tâche Alice',
+            date_echeance=timezone.now(),
+        )
+        Tache.objects.create(
+            utilisateur=self.other_user,
+            titre='Tâche Bob',
+            date_echeance=timezone.now(),
+        )
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    @patch('api.views.parser_reponse', return_value={
+        'heures_recommandees': [10, 15],
+        'message': 'Concentrez-vous sur vos tâches importantes.',
+    })
+    @patch('api.views.appeler_llm', return_value='{"heures_recommandees": [10, 15], "message": "..."}')
+    @patch('api.views.construire_prompt', return_value='prompt nettoye')
+    def test_recommandation_ia_returns_the_validated_llm_response(self, construire_prompt, appeler_llm, parser_reponse):
+        response = self.client.get('/api/taches/recommandation_ia/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'heures_recommandees': [10, 15],
+            'message': 'Concentrez-vous sur vos tâches importantes.',
+        })
+
+    @patch('api.views.appeler_llm', return_value=None)
+    @patch('api.views.construire_prompt', return_value='prompt nettoye')
+    def test_recommandation_ia_falls_back_when_the_llm_call_fails(self, construire_prompt, appeler_llm):
+        StatistiqueUtilisation.objects.create(
+            utilisateur=self.user,
+            tache=self.user_task,
+            heure_completion=time(14),
+            duree_estimee=30,
+        )
+
+        response = self.client.get('/api/taches/recommandation_ia/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'heures_recommandees': [14],
+            'message': 'Vous êtes plus productif vers 14h',
+        })
+
+    @patch('api.views.parser_reponse', return_value=None)
+    @patch('api.views.appeler_llm', return_value='reponse non JSON')
+    @patch('api.views.construire_prompt', return_value='prompt nettoye')
+    def test_recommandation_ia_falls_back_when_the_llm_response_is_invalid(self, construire_prompt, appeler_llm, parser_reponse):
+        response = self.client.get('/api/taches/recommandation_ia/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'heures_recommandees': [],
+            'message': 'Pas assez de données pour une recommandation',
+        })
+
+    def test_recommandation_ia_requires_authentication(self):
+        self.client.credentials()
+
+        response = self.client.get('/api/taches/recommandation_ia/')
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

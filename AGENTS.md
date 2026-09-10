@@ -160,14 +160,13 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - JSON brut ou balisé validé contre le contrat (heures uniques 0-23, maximum trois, message non vide); tout format invalide retourne `None` et journalise uniquement le motif, afin que la future vue active le fallback métier.
 
 ### 5.3 Endpoint Django
-- [ ] `RecommandationIAView` dans `backend/api/views.py`
+- [x] `RecommandationIAView` dans `backend/api/views.py`
   (données utilisateur → prompt → appel LLM → parsing → réponse)
-  - Aucune vue IA dans `backend/api/views.py`.
-  - Contrat de sortie obligatoire, pour la réponse LLM comme pour le fallback : `{"heures_recommandees": [heures], "message": "texte"}`.
-- [ ] Route ajoutée dans `backend/api/urls.py`
-  - Aucune route de recommandation IA.
-- [ ] Fallback vers l'ancien système à règles si l'appel LLM échoue
-  - Aucun appel LLM à sécuriser; l'ancien endpoint à règles reste indépendant.
+  - La vue charge les seules tâches et préférences de l'utilisateur connecté, puis enchaîne le service LLM; contrat de sortie obligatoire: `{"heures_recommandees": [heures], "message": "texte"}`.
+- [x] Route ajoutée dans `backend/api/urls.py`
+  - `GET /api/taches/recommandation_ia/` est déclaré avant le routeur DRF pour éviter qu'il soit interprété comme un identifiant de tâche.
+- [x] Fallback vers l'ancien système à règles si l'appel LLM échoue
+  - Échec technique, absence de réponse ou JSON invalide renvoient le même helper de règles que `/api/taches/meilleur_moment/`.
 
 ### 5.4 Coût / performance
 - [ ] Cache des résultats (recalcul 1x/jour ou si les tâches changent)

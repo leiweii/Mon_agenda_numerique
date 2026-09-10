@@ -2,11 +2,36 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+import logging
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
 from .serializers import TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
+from .llm_service import appeler_llm, construire_prompt, parser_reponse
+
+
+logger = logging.getLogger(__name__)
+
+
+def _recommandation_meilleur_moment(utilisateur):
+    stats = StatistiqueUtilisation.objects.filter(
+        utilisateur=utilisateur
+    ).values('heure_completion__hour').annotate(
+        count=Count('id')
+    ).order_by('-count', 'heure_completion__hour')[:3]
+
+    if stats:
+        heures_productives = [stat['heure_completion__hour'] for stat in stats]
+        return {
+            'heures_recommandees': heures_productives,
+            'message': f'Vous êtes plus productif vers {heures_productives[0]}h',
+        }
+    return {
+        'heures_recommandees': [],
+        'message': 'Pas assez de données pour une recommandation',
+    }
 
 class TacheViewSet(viewsets.ModelViewSet):
     serializer_class = TacheSerializer
@@ -62,22 +87,25 @@ class TacheViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def meilleur_moment(self, request):
         """Algorithme de recommandation du meilleur moment de travail"""
-        stats = StatistiqueUtilisation.objects.filter(
-            utilisateur=request.user
-        ).values('heure_completion__hour').annotate(
-            count=Count('id')
-        ).order_by('-count', 'heure_completion__hour')[:3]
-        
-        if stats:
-            heures_productives = [s['heure_completion__hour'] for s in stats]
-            return Response({
-                'heures_recommandees': heures_productives,
-                'message': f'Vous êtes plus productif vers {heures_productives[0]}h'
-            })
-        return Response({
-            'heures_recommandees': [],
-            'message': 'Pas assez de données pour une recommandation',
-        })
+        return Response(_recommandation_meilleur_moment(request.user))
+
+
+class RecommandationIAView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        taches = Tache.objects.filter(utilisateur=request.user).select_related('categorie')
+        preferences = PreferenceUtilisateur.objects.filter(utilisateur=request.user).first()
+
+        try:
+            prompt = construire_prompt(taches, preferences)
+            texte_llm = appeler_llm(prompt)
+            recommandation = parser_reponse(texte_llm) if texte_llm else None
+        except Exception:
+            logger.warning('Pipeline de recommandation IA indisponible, fallback applique')
+            recommandation = None
+
+        return Response(recommandation or _recommandation_meilleur_moment(request.user))
 
 class CategorieViewSet(viewsets.ModelViewSet):
     serializer_class = CategorieSerializer
