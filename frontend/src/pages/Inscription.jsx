@@ -10,10 +10,10 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { extraireMessageErreur } from '../services/errors';
 
 const Inscription = () => {
   const [form, setForm] = useState({
-    username: '',
     email: '',
     password: '',
     confirmation: '',
@@ -39,13 +39,13 @@ const Inscription = () => {
     setLoading(true);
     try {
       await register({
-        username: form.username,
         email: form.email,
         password: form.password,
+        password_confirmation: form.confirmation,
       });
       navigate('/dashboard');
     } catch (requestError) {
-      setError(requestError.response?.data?.error || 'Impossible de créer votre compte.');
+      setError(extraireMessageErreur(requestError, 'Impossible de créer votre compte.'));
     } finally {
       setLoading(false);
     }
@@ -66,15 +66,6 @@ const Inscription = () => {
 
           <form onSubmit={handleSubmit}>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            <TextField
-              fullWidth
-              required
-              autoComplete="username"
-              label="Nom d'utilisateur"
-              margin="normal"
-              value={form.username}
-              onChange={handleChange('username')}
-            />
             <TextField
               fullWidth
               required

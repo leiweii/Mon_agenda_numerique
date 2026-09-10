@@ -24,9 +24,6 @@ test('registers the user and redirects to the dashboard', async () => {
   });
   render(<Inscription />);
 
-  fireEvent.change(screen.getByLabelText(/Nom d'utilisateur/), {
-    target: { value: 'Alice' },
-  });
   fireEvent.change(screen.getByLabelText(/^E-mail/), {
     target: { value: 'Alice@Example.COM' },
   });
@@ -39,9 +36,9 @@ test('registers the user and redirects to the dashboard', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }));
 
   await waitFor(() => expect(mockRegister).toHaveBeenCalledWith({
-    username: 'Alice',
     email: 'Alice@Example.COM',
     password: 'Une phrase de passe robuste 2026!',
+    password_confirmation: 'Une phrase de passe robuste 2026!',
   }));
   expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
 });
@@ -49,9 +46,6 @@ test('registers the user and redirects to the dashboard', async () => {
 test('shows an error when password confirmation does not match', async () => {
   render(<Inscription />);
 
-  fireEvent.change(screen.getByLabelText(/Nom d'utilisateur/), {
-    target: { value: 'alice' },
-  });
   fireEvent.change(screen.getByLabelText(/^E-mail/), {
     target: { value: 'alice@example.com' },
   });
@@ -65,4 +59,22 @@ test('shows an error when password confirmation does not match', async () => {
 
   expect(await screen.findByText('Les mots de passe ne correspondent pas.')).toBeInTheDocument();
   expect(mockRegister).not.toHaveBeenCalled();
+});
+
+test('displays throttling details returned by the API', async () => {
+  mockRegister.mockRejectedValue({ response: { data: { detail: 'Trop de tentatives.' } } });
+  render(<Inscription />);
+
+  fireEvent.change(screen.getByLabelText(/^E-mail/), {
+    target: { value: 'alice@example.com' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Mot de passe/), {
+    target: { value: 'Une phrase de passe robuste 2026!' },
+  });
+  fireEvent.change(screen.getByLabelText(/Confirmer le mot de passe/), {
+    target: { value: 'Une phrase de passe robuste 2026!' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Créer mon compte' }));
+
+  expect(await screen.findByText('Trop de tentatives.')).toBeInTheDocument();
 });

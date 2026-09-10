@@ -21,7 +21,7 @@ test('submits credentials and redirects to the dashboard after login', async () 
   mockLogin.mockResolvedValue({ token: 'token', user: { username: 'alice' } });
   render(<Login />);
 
-  fireEvent.change(screen.getByLabelText(/Nom d'utilisateur/), {
+  fireEvent.change(screen.getByLabelText(/E-mail ou nom d'utilisateur/), {
     target: { value: 'alice' },
   });
   fireEvent.change(screen.getByLabelText(/Mot de passe/), {
@@ -34,10 +34,10 @@ test('submits credentials and redirects to the dashboard after login', async () 
 });
 
 test('displays an error when login is rejected', async () => {
-  mockLogin.mockRejectedValue(new Error('Unauthorized'));
+  mockLogin.mockRejectedValue({ response: { data: { detail: 'Trop de tentatives.' } } });
   render(<Login />);
 
-  fireEvent.change(screen.getByLabelText(/Nom d'utilisateur/), {
+  fireEvent.change(screen.getByLabelText(/E-mail ou nom d'utilisateur/), {
     target: { value: 'alice' },
   });
   fireEvent.change(screen.getByLabelText(/Mot de passe/), {
@@ -45,7 +45,7 @@ test('displays an error when login is rejected', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
 
-  expect(await screen.findByText("Nom d'utilisateur ou mot de passe incorrect")).toBeInTheDocument();
+  expect(await screen.findByText('Trop de tentatives.')).toBeInTheDocument();
   expect(mockNavigate).not.toHaveBeenCalled();
 });
 
@@ -55,4 +55,12 @@ test('navigates to registration when the sign-up button is clicked', () => {
   fireEvent.click(screen.getByRole('button', { name: "S'inscrire" }));
 
   expect(mockNavigate).toHaveBeenCalledWith('/inscription');
+});
+
+test('navigates to password recovery when the link is clicked', () => {
+  render(<Login />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Mot de passe oublié ?' }));
+
+  expect(mockNavigate).toHaveBeenCalledWith('/mot-de-passe-oublie');
 });

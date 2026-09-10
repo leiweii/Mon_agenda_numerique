@@ -30,8 +30,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const login = async (username, password) => {
-    const response = await authAPI.login(username, password);
+  const login = async (identifier, password) => {
+    const response = await authAPI.login(identifier, password);
     return establishSession(response.data);
   };
 

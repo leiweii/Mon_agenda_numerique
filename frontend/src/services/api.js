@@ -54,9 +54,11 @@ export const preferencesAPI = {
 
 // Authentification
 export const authAPI = {
-  login: (username, password) => 
-    api.post('auth/login/', { username, password }),
+  login: (identifier, password) =>
+    api.post('auth/login/', { identifier, password }),
   register: (data) => api.post('auth/register/', data),
+  requestPasswordReset: (email) => api.post('auth/mot-de-passe-oublie/', { email }),
+  resetPassword: (data) => api.post('auth/reinitialiser-mot-de-passe/', data),
   logout: () => api.post('auth/logout/'),
   getCurrentUser: () => api.get('auth/user/'),
 };
