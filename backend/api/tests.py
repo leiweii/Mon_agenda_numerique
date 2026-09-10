@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
+from datetime import datetime, time, timedelta
 from agenda.models import Categorie, Tache
 
 
@@ -166,3 +167,66 @@ class TacheEndpointsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Tache.objects.filter(pk=self.own_task.id).exists())
+
+    def test_aujourdhui_returns_only_the_authenticated_users_tasks_due_today(self):
+        self.own_task.delete()
+        today = timezone.localdate()
+        tasks = [
+            Tache.objects.create(
+                utilisateur=self.user,
+                titre='Tâche du jour',
+                date_echeance=timezone.make_aware(datetime.combine(today, time(12))),
+            ),
+            Tache.objects.create(
+                utilisateur=self.user,
+                titre='Tâche de demain',
+                date_echeance=timezone.make_aware(
+                    datetime.combine(today + timedelta(days=1), time(12))
+                ),
+            ),
+        ]
+        Tache.objects.create(
+            utilisateur=self.other_user,
+            titre='Tâche du jour de Bob',
+            date_echeance=timezone.make_aware(datetime.combine(today, time(12))),
+        )
+
+        response = self.client.get('/api/taches/aujourd_hui/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual({task['id'] for task in response.data}, {tasks[0].id})
+
+    def test_cette_semaine_returns_tasks_from_monday_through_sunday(self):
+        self.own_task.delete()
+        today = timezone.localdate()
+        monday = today - timedelta(days=today.weekday())
+        sunday = monday + timedelta(days=6)
+        tasks = [
+            Tache.objects.create(
+                utilisateur=self.user,
+                titre='Tâche du lundi',
+                date_echeance=timezone.make_aware(datetime.combine(monday, time(9))),
+            ),
+            Tache.objects.create(
+                utilisateur=self.user,
+                titre='Tâche du dimanche',
+                date_echeance=timezone.make_aware(datetime.combine(sunday, time(18))),
+            ),
+        ]
+        Tache.objects.create(
+            utilisateur=self.user,
+            titre='Tâche de la semaine prochaine',
+            date_echeance=timezone.make_aware(
+                datetime.combine(sunday + timedelta(days=1), time(9))
+            ),
+        )
+        Tache.objects.create(
+            utilisateur=self.other_user,
+            titre='Tâche de Bob cette semaine',
+            date_echeance=timezone.make_aware(datetime.combine(monday, time(9))),
+        )
+
+        response = self.client.get('/api/taches/cette_semaine/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual({task['id'] for task in response.data}, {task.id for task in tasks})

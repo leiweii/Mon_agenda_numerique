@@ -20,15 +20,23 @@ const TacheListe = () => {
   const [openForm, setOpenForm] = useState(false);
   const [tacheSelectionnee, setTacheSelectionnee] = useState(null);
   const [tabValue, setTabValue] = useState(0);
+  const [periode, setPeriode] = useState('toutes');
 
   useEffect(() => {
     chargerDonnees();
-  }, []);
+  }, [periode]);
 
   const chargerDonnees = async () => {
+    const chargerTaches = {
+      toutes: tachesAPI.getAll,
+      aujourdHui: tachesAPI.getAujourdhui,
+      cetteSemaine: tachesAPI.getCetteSemaine,
+    }[periode];
+
+    setLoading(true);
     try {
       const [tachesRes, categoriesRes] = await Promise.all([
-        tachesAPI.getAll(),
+        chargerTaches(),
         categoriesAPI.getAll(),
       ]);
       setTaches(tachesRes.data);
@@ -104,6 +112,27 @@ const TacheListe = () => {
           onClick={() => setOpenForm(true)}
         >
           Nouvelle tâche
+        </Button>
+      </Box>
+
+      <Box display="flex" gap={1} mb={2}>
+        <Button
+          variant={periode === 'toutes' ? 'contained' : 'outlined'}
+          onClick={() => setPeriode('toutes')}
+        >
+          Toutes les tâches
+        </Button>
+        <Button
+          variant={periode === 'aujourdHui' ? 'contained' : 'outlined'}
+          onClick={() => setPeriode('aujourdHui')}
+        >
+          Aujourd'hui
+        </Button>
+        <Button
+          variant={periode === 'cetteSemaine' ? 'contained' : 'outlined'}
+          onClick={() => setPeriode('cetteSemaine')}
+        >
+          Cette semaine
         </Button>
       </Box>
 

@@ -3,7 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q
-from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
 from .serializers import TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
 
@@ -19,7 +20,7 @@ class TacheViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def aujourd_hui(self, request):
-        today = datetime.now().date()
+        today = timezone.localdate()
         taches = self.get_queryset().filter(
             date_echeance__date=today
         )
@@ -28,10 +29,11 @@ class TacheViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def cette_semaine(self, request):
-        today = datetime.now().date()
-        fin_semaine = today + timedelta(days=7)
+        today = timezone.localdate()
+        debut_semaine = today - timedelta(days=today.weekday())
+        fin_semaine = debut_semaine + timedelta(days=6)
         taches = self.get_queryset().filter(
-            date_echeance__date__range=[today, fin_semaine]
+            date_echeance__date__range=[debut_semaine, fin_semaine]
         )
         serializer = self.get_serializer(taches, many=True)
         return Response(serializer.data)

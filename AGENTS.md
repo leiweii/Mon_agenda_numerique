@@ -92,7 +92,7 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
 - [x] Supprimer une tâche
   - Suppression et isolation par utilisateur couvertes dans `backend/api/tests.py`.
 - [x] Lister les tâches / filtrer par jour / semaine
-  - Listing protégé par utilisateur couvert dans `backend/api/tests.py`; les endpoints jour/semaine existants restent utilisés par le Dashboard.
+  - `/api/taches/aujourd_hui/` et `/api/taches/cette_semaine/` filtrent la date locale et la semaine ISO (lundi-dimanche) ; le sélecteur de `TacheListe.jsx` et ses tests couvrent les deux vues.
 
 ### Personnalisation
 - [~] Emoji + couleur par tâche
