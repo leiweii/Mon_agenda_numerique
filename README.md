@@ -1,257 +1,179 @@
-# 📅 Mon Agenda Numérique
+# Mon Agenda Numérique
 
-**Mon Agenda Numérique** est une application web moderne de gestion de tâches et d'agenda personnel, développée avec Django et React. L'application offre une expérience utilisateur intuitive et personnalisable pour organiser efficacement son quotidien.
----
+Application personnelle de gestion de tâches avec tableau de bord, catégories,
+préférences et recommandations d'horaires. Le projet est **en développement** :
+les fonctions décrites ci-dessous correspondent au code actuel, mais la
+configuration n'est pas encore prête pour un déploiement de production.
 
-## 🚀 Fonctionnalités
+## Fonctionnalités actuelles
 
-- ✅ Gestion complète des tâches (CRUD)
-- 🎨 Personnalisation avec couleurs et emojis
-- 📊 Dashboard avec statistiques et graphiques
-- 🤖 Recommandations IA basées sur vos habitudes
-- 📁 Organisation par catégories
-- 🎯 Système de priorités (4 niveaux)
-- 📱 Interface responsive (mobile, tablette, desktop)
-- 🔔 Notifications configurables
-- 🌓 Mode clair/sombre
+- Authentification par token : connexion, déconnexion et récupération de l'utilisateur courant.
+- Création, modification, suppression et filtrage des tâches par jour ou semaine ISO.
+- Catégories personnalisées, couleurs, emoji et quatre niveaux de priorité.
+- Tableau de bord avec statistiques et graphique Recharts des priorités.
+- Préférences utilisateur : heures productives, thème clair/sombre et notifications.
+- Recommandations via Anthropic lorsqu'une clé est disponible, avec cache, quota et repli à règles locales.
 
----
+Limites connues : il n'existe pas d'inscription, les statistiques de compte de
+la page Paramètres sont des valeurs de démonstration, et les habitudes utilisées
+par la recommandation à règles ne sont pas enregistrées automatiquement lors de
+la complétion des tâches. Voir [AGENTS.md](AGENTS.md) pour l'état détaillé.
 
-## 🛠️ Technologies Utilisées
+## Stack technique
 
 ### Backend
-- Python
-- Django
-- Django REST Framework
+
+- Python et Django 6.0
+- Django REST Framework 3.16
 - PostgreSQL
-- Token Authentication
+- Authentification par token DRF
+- `python-decouple` et SDK `anthropic`
 
 ### Frontend
-- React 18
-- Material-UI (MUI)
-- React Router v6
-- Axios
-- Recharts
-- date-fns
 
----
+- React 19.2
+- React Router 7.13
+- Material UI 7.3
+- Axios, Recharts et date-fns
+- Create React App (`react-scripts`)
 
-## 🔧 Installation
+## Installation
 
-### 1. Cloner le projet
+### Prérequis
+
+- Python 3 et PostgreSQL
+- Node.js et npm
+
+### Backend
+
+Depuis la racine du dépôt :
+
 ```bash
-git clone https://github.com/leiweii/Mon_agenda_numerique.git
-cd mon-agenda-numerique
-```
-
-### 2. Configuration de la Base de Données
-
-Créez la base de données PostgreSQL :
-```sql
-CREATE DATABASE agenda_numerique;
-CREATE USER agenda_user WITH PASSWORD 'mot_de_passe';
-GRANT ALL PRIVILEGES ON DATABASE agenda_numerique TO agenda_user;
-```
-
-### 3. Installation du Backend
-```bash
-# Créer un environnement virtuel
 python -m venv venv
-
-# Activer l'environnement virtuel
-# Sur Windows :
+# Windows
 venv\Scripts\activate
-# Sur Mac/Linux :
+# macOS / Linux
 source venv/bin/activate
 
-# Installer les dépendances
-pip install django djangorestframework django-cors-headers psycopg2-binary python-decouple pillow
+cd backend
+pip install -r requirements.txt
+```
 
-# Créer le fichier .env à la racine
-echo "DATABASE_NAME=agenda_numerique" > .env
-echo "DATABASE_USER=agenda_user" >> .env
-echo "DATABASE_PASSWORD=votre_mot_de_passe" >> .env
-echo "DATABASE_HOST=localhost" >> .env
-echo "DATABASE_PORT=5432" >> .env
-echo "SECRET_KEY=votre-cle-secrete-django" >> .env
+Créer `backend/.env` avec les variables réellement lues par `backend/settings.py` :
 
-# Appliquer les migrations
-python manage.py makemigrations
+```env
+DB_NAME=mon_agenda
+DB_USER=postgres
+DB_PASSWORD=mot_de_passe_postgres
+DB_HOST=localhost
+DB_PORT=5432
+
+# Facultative : sans elle, les recommandations IA utilisent le repli local.
+LLM_API_KEY=cle_anthropic
+```
+
+`LLM_API_KEY` doit rester uniquement côté backend et ne doit jamais être placée
+dans un fichier du frontend. Le projet lit actuellement une `SECRET_KEY` Django
+codée en dur et active `DEBUG`; ne pas le déployer tel quel en production.
+
+Appliquer les migrations et lancer le serveur :
+
+```bash
 python manage.py migrate
-
-# Créer un superutilisateur
-python manage.py createsuperuser
-
-# Lancer le serveur
 python manage.py runserver
 ```
 
-Le backend sera accessible sur `http://localhost:8000`
+L'API est disponible sur `http://localhost:8000`.
 
-### 4. Installation du Frontend
+### Frontend
+
+Dans un autre terminal :
+
 ```bash
-# Aller dans le dossier frontend
 cd frontend
-
-# Installer les dépendances
 npm install
-
-# Lancer l'application React
 npm start
 ```
 
-Le frontend sera accessible sur `http://localhost:3000`
+L'application démarre normalement sur `http://localhost:3000`. Son client API
+est actuellement configuré pour joindre `http://localhost:8000/api/`.
 
----
+## Structure du projet
 
-## 📁 Structure du Projet
-```
-mon-agenda-numerique/
-├── backend/
-│   ├── agenda/                 # App principale
-│   │   ├── models.py          # Modèles de données
-│   │   ├── admin.py           # Interface admin
-│   │   └── migrations/        # Migrations DB
-│   ├── api/                   # API REST
-│   │   ├── views.py           # Vues API
-│   │   ├── serializers.py     # Sérialiseurs
-│   │   ├── urls.py            # Routes API
-│   │   └── authentication.py  # Auth
-│   ├── backend/               # Configuration Django
-│   │   ├── settings.py
-│   │   ├── urls.py
-│   │   └── wsgi.py
-│   └── manage.py
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/        # Composants React
-│   │   │   ├── Layout/
-│   │   │   ├── Taches/
-│   │   │   ├── Categories/
-│   │   │   └── Statistiques/
-│   │   ├── pages/             # Pages
-│   │   │   ├── Login.jsx
-│   │   │   ├── Home.jsx
-│   │   │   └── Parametres.jsx
-│   │   ├── services/          # Services API
-│   │   │   └── api.js
-│   │   ├── context/           # Context React
-│   │   │   └── AuthContext.jsx
-│   │   ├── App.jsx            # App principale
-│   │   └── index.js
-│   ├── package.json
-│   └── README.md
+```text
+mon_agenda/
+├── AGENTS.md
 ├── README.md
-├── PRESENTATION.md
-└── .gitignore
+├── docs/
+│   ├── llm-contract.md
+│   └── llm-cache-quota-logging.md
+├── backend/
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── backend/                 # Paramètres Django et routes racine
+│   ├── agenda/                  # Modèles métier et migrations
+│   └── api/                     # API REST, auth, LLM, cache, signaux et tests
+└── frontend/
+    ├── package.json
+    └── src/
+        ├── components/          # Tâches, catégories, dashboard, recommandations
+        ├── context/             # Authentification React
+        ├── pages/               # Accueil, connexion, paramètres
+        └── services/api.js       # Client Axios
 ```
 
----
+## API disponible
 
-## 🎯 Utilisation
+Toutes les routes API sont préfixées par `/api/`.
 
-### 1. Connexion
+| Méthode | Route | Description |
+| --- | --- | --- |
+| POST | `/api/auth/login/` | Connexion et création d'un token |
+| POST | `/api/auth/logout/` | Suppression du token courant |
+| GET | `/api/auth/user/` | Utilisateur authentifié courant |
+| GET, POST | `/api/taches/` | Liste ou création des tâches de l'utilisateur |
+| GET, PUT, PATCH, DELETE | `/api/taches/{id}/` | Consultation, modification ou suppression d'une tâche |
+| GET | `/api/taches/aujourd_hui/` | Tâches dont l'échéance est aujourd'hui |
+| GET | `/api/taches/cette_semaine/` | Tâches de la semaine ISO courante, lundi a dimanche |
+| GET | `/api/taches/statistiques/` | Totaux, taux de complétion et priorités 1 a 4 |
+| GET | `/api/taches/meilleur_moment/` | Recommandation basée sur les statistiques d'utilisation disponibles |
+| GET | `/api/taches/recommandation_ia/` | Recommandation LLM avec cache, quota et repli local |
+| GET, POST | `/api/categories/` | Liste ou création des catégories de l'utilisateur |
+| GET, PUT, PATCH, DELETE | `/api/categories/{id}/` | Consultation, modification ou suppression d'une catégorie |
+| GET, POST | `/api/preferences/` | Liste ou création des préférences de l'utilisateur |
+| GET, PUT, PATCH, DELETE | `/api/preferences/{id}/` | Consultation, modification ou suppression de préférences |
 
-- Ouvrez `http://localhost:3000`
-- Connectez-vous avec votre superutilisateur Django
+L'administration Django est accessible sur `/admin/`.
 
-### 2. Créer une Tâche
+La réponse de recommandation, qu'elle provienne du LLM ou du repli, respecte :
 
-1. Cliquez sur "Nouvelle tâche"
-2. Remplissez le formulaire :
-   - Titre
-   - Description (optionnel)
-   - Date d'échéance
-   - Priorité (1-4)
-   - Catégorie (optionnel)
-3. Personnalisez avec un emoji et une couleur
-4. Cliquez sur "Créer"
-
-### 3. Gérer les Catégories
-
-1. Allez dans "Catégories"
-2. Créez vos catégories personnalisées
-3. Attribuez-les à vos tâches
-
-### 4. Consulter les Statistiques
-
-1. Visitez le "Tableau de bord"
-2. Visualisez :
-   - Total de tâches
-   - Taux de complétion
-   - Graphiques de priorités
-   - Recommandations IA
-
-### 5. Configurer les Préférences
-
-1. Allez dans "Paramètres"
-2. Définissez :
-   - Heures productives
-   - Thème (clair/sombre)
-   - Notifications
-
----
-
-## 🔌 API Endpoints
-
-### Authentification
-```
-POST   /api/auth/login/          # Connexion
-POST   /api/auth/logout/         # Déconnexion
-GET    /api/auth/user/           # Utilisateur actuel
+```json
+{
+  "heures_recommandees": [9, 14],
+  "message": "Une recommandation concise."
+}
 ```
 
-### Tâches
-```
-GET    /api/taches/              # Liste toutes les tâches
-POST   /api/taches/              # Créer une tâche
-GET    /api/taches/{id}/         # Détails d'une tâche
-PUT    /api/taches/{id}/         # Modifier une tâche
-DELETE /api/taches/{id}/         # Supprimer une tâche
-GET    /api/taches/aujourd_hui/  # Tâches du jour
-GET    /api/taches/cette_semaine/ # Tâches de la semaine
-GET    /api/taches/statistiques/  # Statistiques
-GET    /api/taches/meilleur_moment/ # Recommandations
-GET    /api/taches/recommandation_ia/
-```
+Le format détaillé du prompt et du JSON est documenté dans
+[docs/llm-contract.md](docs/llm-contract.md).
 
-### Recommandations IA
-
-`GET /api/taches/recommandation_ia/` exige le token d'authentification habituel.
-Il renvoie une recommandation au format JSON documente dans
-[`docs/llm-contract.md`](docs/llm-contract.md). Le backend utilise la variable
-`LLM_API_KEY`, a renseigner dans `backend/.env` (ou dans l'environnement du
-processus Django) : elle ne doit jamais etre ajoutee au frontend ni committee.
-
-En l'absence de cle, en cas d'erreur du fournisseur ou de reponse invalide, le
-backend renvoie automatiquement la recommandation de secours fondee sur les
-regles existantes, dans le meme format JSON.
-### Catégories
-```
-GET    /api/categories/          # Liste des catégories
-POST   /api/categories/          # Créer une catégorie
-PUT    /api/categories/{id}/     # Modifier une catégorie
-DELETE /api/categories/{id}/     # Supprimer une catégorie
-```
-
-### Préférences
-```
-GET    /api/preferences/         # Préférences utilisateur
-PUT    /api/preferences/{id}/    # Modifier préférences
-```
-
----
-
-## 🧪 Tests
+## Tests
 
 ### Backend
+
 ```bash
+cd backend
 python manage.py test
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
-npm test
+npm test -- --watchAll=false
 ```
+
+## État d'avancement
+
+Consulter [AGENTS.md](AGENTS.md) pour les fonctionnalités validées, les limites
+connues et l'état détaillé du pipeline de recommandations LLM.

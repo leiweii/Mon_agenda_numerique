@@ -1,210 +1,138 @@
-# AGENTS.md — Guide de travail pour l'agent (Codex)
+# AGENTS.md - Guide de travail
 
-Ce fichier est lu automatiquement par Codex au début de chaque session. Il décrit le
-projet, les règles à suivre, et l'état d'avancement réel des fonctionnalités.
-**Codex : lis ce fichier en entier avant de commencer une tâche.**
+## 1. Contexte et stack
 
----
+**Mon Agenda Numérique** est une application personnelle de gestion de tâches.
+Le projet est en développement ; l'état ci-dessous est issu du code présent dans
+`backend/` et `frontend/src/`, et non des annonces antérieures.
 
-## 0. Ta toute première tâche
+- Backend : Python, Django 6, Django REST Framework, PostgreSQL, authentification par token.
+- Frontend : React 19, React Router 7, Material UI 7, Axios, Recharts et date-fns.
+- Recommandations : SDK Anthropic côté Django, avec repli local déterministe.
 
-Avant de coder quoi que ce soit, fais un **audit du repo** :
-1. Parcours `backend/` et `frontend/src/` fichier par fichier.
-2. Pour chaque fonctionnalité listée dans la section **"État d'avancement"** ci-dessous,
-   vérifie si elle est réellement implémentée, partiellement implémentée, ou absente.
-3. Mets à jour les cases `[ ]` / `[~]` / `[x]` de cette section en conséquence, et
-   ajoute une courte note (fichier concerné, ce qu'il manque).
-4. Ne modifie aucun autre fichier pendant cette tâche. Fais un commit séparé
-   `docs: audit état du projet`.
-
-Une fois cet audit fait, on travaille fonctionnalité par fonctionnalité (section 4).
-
----
-
-## 1. Contexte du projet
-
-**Mon Agenda Numérique** — application de gestion de tâches et d'agenda personnel.
-
-- **Backend** : Python, Django, Django REST Framework, PostgreSQL, auth par token
-- **Frontend** : React 18, Material-UI (MUI), React Router v6, Axios, Recharts, date-fns
-- **Repo** : voir structure détaillée dans `README.md`
-
-Objectif global : terminer les fonctionnalités listées dans le README (certaines sont
-annoncées mais incomplètes ou absentes), et intégrer un pipeline de recommandations LLM
-(section 5 de ce fichier).
-
----
-
-## 2. Environnement & commandes
+## 2. Commandes de développement
 
 ### Backend
+
+Depuis la racine du dépôt :
+
 ```bash
 python -m venv venv
-source venv/bin/activate        # Windows : venv\Scripts\activate
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
+
+cd backend
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py runserver      # http://localhost:8000
-python manage.py test           # tests backend
+python manage.py runserver
+python manage.py test
 ```
 
+Le serveur écoute sur `http://localhost:8000`.
+
 ### Frontend
+
 ```bash
 cd frontend
 npm install
-npm start                       # http://localhost:3000
-npm test                        # tests frontend
+npm start
+npm test -- --watchAll=false
 ```
 
-Variables d'environnement attendues dans `.env` (racine) : voir README section Installation.
+Le serveur de développement React écoute normalement sur `http://localhost:3000`.
 
----
+## 3. Règles de travail pour un agent IA
 
-## 3. Règles de travail pour l'agent
+- Une tâche fonctionnelle correspond à un commit isolé. Ne pas mélanger des refontes sans lien.
+- Écrire ou adapter les tests concernés et exécuter `python manage.py test` ainsi que `npm test` avant de déclarer une tâche terminée.
+- Ne jamais ajouter de secret dans le code, dans le frontend ou dans Git. Les clés passent par l'environnement et restent côté backend.
+- Respecter les conventions, le nommage et les bibliothèques déjà employés dans le fichier modifié. Pour les nouveaux composants MUI, employer l'API MUI 7 (`size`) plutôt que l'ancienne API `item xs` encore visible dans certains formulaires.
+- Ne pas modifier les migrations, dépendances ou code applicatif pour une tâche de documentation.
+- Mettre à jour l'état ci-dessous après une évolution vérifiée par les tests.
 
-- **Une tâche = une fonctionnalité = un commit.** Ne pas mélanger plusieurs
-  fonctionnalités dans un même commit/diff.
-- **Toujours écrire ou mettre à jour les tests** correspondant au code touché
-  (`python manage.py test` côté back, `npm test` côté front). Ne pas considérer une
-  tâche terminée si les tests ne passent pas.
-- **Ne pas casser l'existant** : si une modification touche un endpoint ou composant
-  utilisé ailleurs, vérifier les usages avant de changer la signature.
-- **Sécurité** : aucune clé API ou secret en dur dans le code. Tout passe par `.env` /
-  `python-decouple` côté backend, jamais exposé côté React.
-- **Style** : suivre les conventions déjà présentes dans le fichier édité (nommage,
-  imports, structure des composants) plutôt que d'introduire un nouveau style.
-- **En cas de doute** sur une décision produit (UX, priorité d'une fonctionnalité),
-  ajouter une note dans le commit/PR plutôt que de deviner silencieusement.
-- Après chaque tâche, mettre à jour la case correspondante dans la section
-  "État d'avancement" (`[ ]` → `[~]` → `[x]`).
+## 4. État d'avancement
 
----
+Légende : `[ ]` absent ; `[~]` partiel ou avec limite connue ; `[x]` implémenté et couvert par les tests présents.
 
-## 4. État d'avancement des fonctionnalités
+### Authentification
 
-> Légende : `[ ]` pas fait · `[~]` partiel/à finir · `[x]` fait et testé
-> **À remplir par l'audit initial (section 0), puis tenir à jour après chaque tâche.**
+- [x] Connexion, déconnexion et utilisateur courant par token : `api/authentication.py`, `AuthContext.jsx` et `Login.jsx` sont implémentés et testés.
+- [ ] Inscription utilisateur : aucun endpoint ni écran d'inscription ; le bouton de `Login.jsx` ne déclenche aucune action.
 
-### Tâches (CRUD)
-- [x] Créer une tâche (titre, description, date d'échéance, priorité, catégorie)
-  - Création, validation de catégorie et erreur de formulaire couvertes par `backend/api/tests.py` et `TacheForm.test.jsx`.
-- [x] Modifier une tâche
-  - Mise à jour protégée par utilisateur testée dans `backend/api/tests.py`; les erreurs restent visibles dans `TacheForm.jsx`.
-- [x] Supprimer une tâche
-  - Suppression et isolation par utilisateur couvertes dans `backend/api/tests.py`.
-- [x] Lister les tâches / filtrer par jour / semaine
-  - `/api/taches/aujourd_hui/` et `/api/taches/cette_semaine/` filtrent la date locale et la semaine ISO (lundi-dimanche) ; le sélecteur de `TacheListe.jsx` et ses tests couvrent les deux vues.
+### Tâches
 
-### Personnalisation
-- [x] Emoji + couleur par tâche
-  - Validation `#RRGGBB`, sélecteurs emoji/palette/color picker et persistance API couverts par les tests.
-- [x] Catégories personnalisées (CRUD)
-  - CRUD isolé par utilisateur, formulaire React et attribution à une tâche couverts par les tests ; supprimer une catégorie conserve les tâches avec `categorie=null`.
-- [x] Système de priorités (4 niveaux)
-  - Les niveaux Basse, Moyenne, Haute et Urgente sont validés par Django, sélectionnables dans le formulaire et affichés par un chip coloré testé.
+- [x] CRUD des tâches : titre, description, échéance, priorité, catégorie, couleur, emoji et état complété sont gérés par `TacheViewSet` et les composants `Taches/`.
+- [x] Listes générale, du jour et de la semaine ISO : actions `aujourd_hui` et `cette_semaine`, filtres correspondants dans `TacheListe.jsx`.
+- [x] Catégories personnalisées : CRUD utilisateur-scopé ; supprimer une catégorie conserve les tâches avec une catégorie nulle (`SET_NULL`).
+- [x] Priorités à quatre niveaux et affichage visuel : modèle, sérialiseur, formulaire et cartes de tâche.
+- [x] Emoji et couleur par tâche : validation de couleur hexadécimale côté backend et sélecteurs dans le formulaire.
 
-### Dashboard & statistiques
-- [x] Total de tâches / taux de complétion
-  - Les calculs isolés par utilisateur et les cartes Dashboard sont couverts par les tests backend et frontend.
-- [x] Graphiques de priorités (Recharts)
-  - `GraphiquesPriorite.jsx` reçoit les quatre priorités normalisées et son rendu/état vide sont testés.
-- [x] Endpoint `GET /api/taches/statistiques/`
-  - L'action retourne total, complétées, en cours, taux et `[{'priorite': 1..4, 'count': n}]`, y compris les zéros.
+### Préférences et interface
 
-### Recommandations
-- [x] Endpoint `GET /api/taches/meilleur_moment/` (règles simples actuelles)
-  - Retourne pour l'utilisateur connecté jusqu'à trois heures de complétion les plus fréquentes (départage par heure croissante), ou une liste vide; contrat et accès token couverts par les tests.
-- [ ] Pipeline LLM (voir section 5)
-  - Aucun service, endpoint ou composant LLM trouvé.
+- [x] Préférences utilisateur : heures productives, thème clair/sombre et notifications sont persistés et modifiables depuis `Parametres.jsx`.
+- [x] Thème initial : l'application charge la préférence sauvegardée au démarrage ; les anciennes valeurs `auto` sont normalisées par migration.
+- [~] Responsive : `Home`, `Parametres` et `Dashboard` utilisent les breakpoints MUI 7 et ont des tests dédiés ; `TacheForm.jsx` et les composants de catégories utilisent encore l'ancienne API Grid (`item`, `xs`, `sm`, `md`), qui produit des avertissements sous MUI 7.
+- [~] Statistiques de compte dans les paramètres : les trois compteurs sont calculés aléatoirement dans le frontend, sans données API réelles.
 
-### Préférences & paramètres
-- [x] Heures productives
-  - `PreferenceUtilisateur` valide une plage début/fin cohérente; création, mise à jour et formulaire sont couverts par les tests.
-- [x] Thème clair/sombre
-  - Les seuls thèmes `clair` et `sombre` sont validés, `auto` existant est migré vers `clair`, et le thème MUI est chargé au démarrage puis appliqué après sauvegarde.
-- [x] Notifications configurables
-  - L'interrupteur est persisté via `/api/preferences/` et couvert par les tests de création du formulaire et de l'endpoint.
+### Dashboard et statistiques
 
-### Auth
-- [x] Login / logout / utilisateur courant (token auth)
-  - Endpoints token, invalidation de session et contexte/formulaire React couverts par `backend/api/tests.py`, `AuthContext.test.jsx` et `Login.test.jsx`.
+- [x] Total, taux de complétion et répartition par priorité : endpoint `GET /api/taches/statistiques/`, avec les quatre priorités 1 a 4 y compris les zéros.
+- [x] Graphique de priorités : `GraphiquesPriorite.jsx` utilise Recharts et est intégré au dashboard.
 
-### Autres
-- [x] Interface responsive (mobile/tablette/desktop)
-  - `Home.jsx`, `Parametres.jsx` et `Dashboard.jsx` utilisent l'API Grid de MUI 7.3.7 (`size` pour xs/sm/md), testée pour mobile, tablette et desktop; le padding du layout est adapté au mobile.
-  - Hors périmètre : `components/Taches/` et `components/Categories/` utilisent encore l'ancienne API Grid (`item`, `xs`, `sm`, `md`) supprimée par MUI v7 et devront être migrés dans une tâche dédiée.
+### Recommandations à règles
 
----
+- [~] `GET /api/taches/meilleur_moment/` : l'endpoint et son contrat `{heures_recommandees, message}` existent et sont testés ; aucune logique applicative n'enregistre automatiquement les `StatistiqueUtilisation` lors de la complétion d'une tâche, donc les données d'habitudes ne sont pas alimentées en usage normal.
 
-## 5. Pipeline LLM (recommandations IA)
+### Configuration de déploiement
 
-Objectif : remplacer/enrichir `GET /api/taches/meilleur_moment/` avec des
-recommandations générées par LLM (priorisation, résumé hebdomadaire, détection de
-surcharge), à partir des tâches/catégories/préférences existantes.
+- [~] Configuration de développement fonctionnelle : PostgreSQL, CORS local et URL Axios locale sont codés pour l'environnement local. `DEBUG=True`, une `SECRET_KEY` codée en dur et l'URL API `localhost` empêchent de qualifier cette configuration de prête pour la production.
 
-### 5.1 Config & sécurité
-- [x] `LLM_API_KEY` dans `.env`, jamais exposée côté React
-  - `backend/.env` (ignoré par Git) contient la variable vide à renseigner localement; aucun code frontend ne la lit.
-- [x] `LLM_API_KEY` chargée dans `backend/backend/settings.py` via `python-decouple`
-  - `settings.py` charge la valeur côté serveur avec une valeur vide par défaut.
-- [x] SDK installé (`pip install anthropic`) et ajouté à `requirements.txt`
-  - `anthropic==1.4.0` est installé dans le venv et épinglé dans `backend/requirements.txt`.
+## 5. Pipeline de recommandations LLM
 
-### 5.2 Service `backend/api/llm_service.py`
-- [x] `construire_prompt(taches, preferences)` — prompt structuré, réponse JSON stricte
-  - `api/llm_service.py` impose le contrat JSON, utilise `claude-haiku-4-5-20251001` et limite la sortie à 256 tokens.
-- [x] Nettoyage/validation des données injectées (anti-injection, troncature)
-  - Les caractères de contrôle sont retirés; les champs de tâches et préférences sont normalisés, bornés et placés comme données non fiables entre balises.
-- [x] `appeler_llm(prompt)` — timeout + retries
-  - Délai de 10 secondes et au plus deux tentatives; seuls timeout, connexion, rate limit et 5xx sont rejoués. Les logs ne contiennent que tentative, durée, statut et longueur du prompt.
-- [x] `parser_reponse(texte_llm)` — parsing JSON + fallback + logging si format invalide
-  - JSON brut ou balisé validé contre le contrat (heures uniques 0-23, maximum trois, message non vide); tout format invalide retourne `None` et journalise uniquement le motif, afin que la future vue active le fallback métier.
+Le contrat de sortie, commun au LLM et au repli à règles, est toujours :
 
-### 5.3 Endpoint Django
-- [x] `RecommandationIAView` dans `backend/api/views.py`
-  (données utilisateur → prompt → appel LLM → parsing → réponse)
-  - La vue charge les seules tâches et préférences de l'utilisateur connecté, puis enchaîne le service LLM; contrat de sortie obligatoire: `{"heures_recommandees": [heures], "message": "texte"}`.
-- [x] Route ajoutée dans `backend/api/urls.py`
-  - `GET /api/taches/recommandation_ia/` est déclaré avant le routeur DRF pour éviter qu'il soit interprété comme un identifiant de tâche.
-- [x] Fallback vers l'ancien système à règles si l'appel LLM échoue
-  - Échec technique, absence de réponse ou JSON invalide renvoient le même helper de règles que `/api/taches/meilleur_moment/`.
+```json
+{
+  "heures_recommandees": [9, 14],
+  "message": "Une recommandation concise."
+}
+```
 
-### 5.4 Coût / performance
-- [x] Cache des résultats (recalcul 1x/jour ou si les tâches changent)
-  - Cache PostgreSQL TTL 24 h, scoppé utilisateur et invalidé par les signaux tâches/préférences.
-- [x] Rate limiting par utilisateur
-  - Au plus 10 réservations LLM externes par jour; au-delà, cache valide puis fallback à règles.
-- [x] Logging des appels (prompt, durée, succès/échec)
-  - Journaux de métadonnées hachées, durée/statut/cache hit/type d'erreur et purge probabiliste après 30 jours.
+### Configuration
 
-### 5.5 Frontend
-- [x] `frontend/src/components/RecommandationsIA.jsx`
-  - Composant autonome affichant le message et les heures de `/api/taches/recommandation_ia/`.
-- [x] Appel via `frontend/src/services/api.js`
-  - `tachesAPI.getRecommandationIA()` appelle l'endpoint authentifié existant.
-- [x] État de chargement (skeleton/spinner)
-  - Skeleton MUI affiché pendant la récupération de la recommandation.
-- [x] Gestion des erreurs (message clair si échec)
-  - Alerte claire et bouton de réessai sans bloquer les statistiques du Dashboard.
-- [x] Intégration dans le Dashboard
-  - Le composant est affiché dans `components/Statistiques/Dashboard.jsx` à la place de l'ancien encart de règles.
+- [x] `LLM_API_KEY` est lue côté Django avec `python-decouple` ; elle n'est pas exposée au frontend.
+- [x] Le SDK `anthropic` est présent dans `backend/requirements.txt`.
+- [~] Une clé réelle reste nécessaire dans l'environnement pour appeler Anthropic ; sans elle, l'API utilise le repli local.
 
-### 5.6 Tests
-- [x] Backend : mock de l'appel LLM, test du parsing, test du fallback
-  - `test_llm_service.py` couvre le mock Anthropic et le parsing; `test_llm_performance_endpoint.py` couvre les réponses invalides, exceptions et le fallback à règles.
-- [x] Frontend : rendu du composant en loading / succès / erreur
-  - `RecommandationsIA.test.jsx` couvre le skeleton, l'affichage du contrat de succès et le message d'erreur.
+### Service
 
-### 5.7 Documentation
-- [x] README : nouvel endpoint + variable `LLM_API_KEY`
-  - `README.md` documente `GET /api/taches/recommandation_ia/`, son authentification et la configuration backend sans exposer la clé au React.
-- [x] Format du prompt et de la réponse JSON documenté ici ou dans `/docs`
-  - `docs/llm-contract.md` décrit le prompt structuré, la normalisation des données et le contrat JSON commun au LLM et au fallback.
+- [x] `api/llm_service.py` construit un prompt structuré, nettoie et tronque les données utilisateur, impose du JSON et valide la réponse.
+- [x] L'appel Anthropic possède un délai, deux tentatives pour les erreurs transitoires, un modèle par défaut et une limite de 256 tokens.
+- [x] Les erreurs techniques ou de format renvoient `None` et sont journalisées sans contenu de prompt ni de réponse.
 
----
+### Endpoint
 
-## 6. Points de vigilance (rappel)
+- [x] `GET /api/taches/recommandation_ia/` récupère les tâches et préférences de l'utilisateur, appelle le service puis garantit le contrat JSON.
+- [x] En cas d'absence de clé, d'échec LLM ou de réponse invalide, l'endpoint utilise `meilleur_moment` comme repli.
 
-- Clé API LLM uniquement côté backend
-- Éviter les appels LLM à chaque chargement de page (cache !)
-- Toujours prévoir un fallback si parsing/API échoue
-- Latence perceptible côté LLM → toujours un état de chargement React
+### Cache, quota et journalisation
+
+- [x] Cache persistant en base, clé dérivée de l'utilisateur, des tâches et préférences, TTL de 24 heures ; invalidation par signaux à chaque modification de tâche ou préférence.
+- [x] Quota de dix appels externes Anthropic par utilisateur et par jour calendaire ; au-delà, dernière réponse en cache ou repli local.
+- [x] Journalisation en base de métadonnées pseudonymisées uniquement, avec purge probabiliste des entrées de plus de trente jours.
+
+### Frontend
+
+- [x] `RecommandationsIA.jsx` appelle l'API, affiche un skeleton de chargement, le résultat et une erreur avec possibilité de réessayer ; il est intégré à `Dashboard`.
+
+### Tests
+
+- [x] Tests backend pour le service, le parsing, le cache, le quota, l'endpoint et les replis.
+- [x] Tests frontend pour les états chargement, succès et erreur du composant de recommandations.
+
+### Documentation
+
+- [x] Le contrat du prompt et de la réponse est décrit dans `docs/llm-contract.md`.
+- [x] L'architecture cache/quota/journalisation est décrite dans `docs/llm-cache-quota-logging.md`.
