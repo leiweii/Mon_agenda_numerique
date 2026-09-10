@@ -1,7 +1,12 @@
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
+from django.core import mail
+from django.test import override_settings
 from unittest.mock import patch
 from django.utils import timezone
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
@@ -207,6 +212,119 @@ class AuthenticationEndpointsTests(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         response = self.client.post('/api/auth/register/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_password_reset_request_is_generic_and_sends_an_email_for_an_existing_account(self):
+        existing_response = self.client.post(
+            '/api/auth/mot-de-passe-oublie/',
+            {'email': 'ALICE@EXAMPLE.COM'},
+            format='json',
+        )
+        unknown_response = self.client.post(
+            '/api/auth/mot-de-passe-oublie/',
+            {'email': 'inconnu@example.com'},
+            format='json',
+        )
+
+        expected_response = {'message': 'Si ce compte existe, un e-mail a été envoyé.'}
+        self.assertEqual(existing_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(unknown_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(existing_response.data, expected_response)
+        self.assertEqual(unknown_response.data, expected_response)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('/reinitialiser-mot-de-passe/', mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_password_reset_request_limits_requests_per_normalized_email(self):
+        for _ in range(3):
+            response = self.client.post(
+                '/api/auth/mot-de-passe-oublie/',
+                {'email': 'ALICE@EXAMPLE.COM'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.post(
+            '/api/auth/mot-de-passe-oublie/',
+            {'email': 'alice@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_password_reset_request_limits_requests_per_ip(self):
+        for index in range(5):
+            response = self.client.post(
+                '/api/auth/mot-de-passe-oublie/',
+                {'email': f'inconnu{index}@example.com'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.post(
+            '/api/auth/mot-de-passe-oublie/',
+            {'email': 'inconnu6@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_password_reset_changes_the_password_and_invalidates_the_token(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        password = 'Un nouveau mot de passe robuste 2026!'
+
+        response = self.client.post(
+            '/api/auth/reinitialiser-mot-de-passe/',
+            {
+                'uid': uid,
+                'token': token,
+                'password': password,
+                'password_confirmation': password,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'message': 'Mot de passe réinitialisé avec succès.'})
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(password))
+        self.assertFalse(default_token_generator.check_token(self.user, token))
+
+    def test_password_reset_rejects_an_invalid_or_expired_token(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        expired_token = default_token_generator._make_token_with_timestamp(self.user, 0, self.user.password)
+
+        for token in ('invalide', expired_token):
+            response = self.client.post(
+                '/api/auth/reinitialiser-mot-de-passe/',
+                {
+                    'uid': uid,
+                    'token': token,
+                    'password': 'Un nouveau mot de passe robuste 2026!',
+                    'password_confirmation': 'Un nouveau mot de passe robuste 2026!',
+                },
+                format='json',
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response.data, {'error': 'Lien de réinitialisation invalide ou expiré.'})
+
+    def test_password_reset_confirmation_limits_requests_per_ip(self):
+        payload = {
+            'uid': 'invalide',
+            'token': 'invalide',
+            'password': 'Un nouveau mot de passe robuste 2026!',
+            'password_confirmation': 'Un nouveau mot de passe robuste 2026!',
+        }
+
+        for _ in range(5):
+            response = self.client.post('/api/auth/reinitialiser-mot-de-passe/', payload, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post('/api/auth/reinitialiser-mot-de-passe/', payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
