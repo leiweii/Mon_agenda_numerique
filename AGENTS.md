@@ -111,8 +111,8 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - L'action retourne total, complétées, en cours, taux et `[{'priorite': 1..4, 'count': n}]`, y compris les zéros.
 
 ### Recommandations
-- [~] Endpoint `GET /api/taches/meilleur_moment/` (règles simples actuelles)
-  - Action à règles simples présente dans `backend/api/views.py`; aucun test.
+- [x] Endpoint `GET /api/taches/meilleur_moment/` (règles simples actuelles)
+  - Retourne pour l'utilisateur connecté jusqu'à trois heures de complétion les plus fréquentes (départage par heure croissante), ou une liste vide; contrat et accès token couverts par les tests.
 - [ ] Pipeline LLM (voir section 5)
   - Aucun service, endpoint ou composant LLM trouvé.
 
@@ -163,6 +163,7 @@ surcharge), à partir des tâches/catégories/préférences existantes.
 - [ ] `RecommandationIAView` dans `backend/api/views.py`
   (données utilisateur → prompt → appel LLM → parsing → réponse)
   - Aucune vue IA dans `backend/api/views.py`.
+  - Contrat de sortie obligatoire, pour la réponse LLM comme pour le fallback : `{"heures_recommandees": [heures], "message": "texte"}`.
 - [ ] Route ajoutée dans `backend/api/urls.py`
   - Aucune route de recommandation IA.
 - [ ] Fallback vers l'ancien système à règles si l'appel LLM échoue

@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 from datetime import datetime, time, timedelta
-from agenda.models import Categorie, PreferenceUtilisateur, Tache
+from agenda.models import Categorie, PreferenceUtilisateur, StatistiqueUtilisation, Tache
 
 
 class AuthenticationEndpointsTests(APITestCase):
@@ -430,3 +430,59 @@ class StatistiquesEndpointsTests(APITestCase):
             {'priorite': 3, 'count': 0},
             {'priorite': 4, 'count': 0},
         ])
+
+
+class MeilleurMomentEndpointTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        self.user_task = Tache.objects.create(
+            utilisateur=self.user,
+            titre='Tâche Alice',
+            date_echeance=timezone.now(),
+        )
+        self.other_task = Tache.objects.create(
+            utilisateur=self.other_user,
+            titre='Tâche Bob',
+            date_echeance=timezone.now(),
+        )
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def add_completion(self, hour, utilisateur=None, tache=None):
+        StatistiqueUtilisation.objects.create(
+            utilisateur=utilisateur or self.user,
+            tache=tache or self.user_task,
+            heure_completion=time(hour),
+            duree_estimee=30,
+        )
+
+    def test_meilleur_moment_returns_the_users_three_most_frequent_hours_in_order(self):
+        for hour in [14, 14, 9, 9, 17]:
+            self.add_completion(hour)
+        for hour in [8, 8, 8]:
+            self.add_completion(hour, utilisateur=self.other_user, tache=self.other_task)
+
+        response = self.client.get('/api/taches/meilleur_moment/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'heures_recommandees': [9, 14, 17],
+            'message': 'Vous êtes plus productif vers 9h',
+        })
+
+    def test_meilleur_moment_returns_the_fallback_contract_when_no_completion_exists(self):
+        response = self.client.get('/api/taches/meilleur_moment/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'heures_recommandees': [],
+            'message': 'Pas assez de données pour une recommandation',
+        })
+
+    def test_meilleur_moment_requires_authentication(self):
+        self.client.credentials()
+
+        response = self.client.get('/api/taches/meilleur_moment/')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

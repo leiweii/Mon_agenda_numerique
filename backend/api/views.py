@@ -66,7 +66,7 @@ class TacheViewSet(viewsets.ModelViewSet):
             utilisateur=request.user
         ).values('heure_completion__hour').annotate(
             count=Count('id')
-        ).order_by('-count')[:3]
+        ).order_by('-count', 'heure_completion__hour')[:3]
         
         if stats:
             heures_productives = [s['heure_completion__hour'] for s in stats]
@@ -74,7 +74,10 @@ class TacheViewSet(viewsets.ModelViewSet):
                 'heures_recommandees': heures_productives,
                 'message': f'Vous êtes plus productif vers {heures_productives[0]}h'
             })
-        return Response({'message': 'Pas assez de données pour une recommandation'})
+        return Response({
+            'heures_recommandees': [],
+            'message': 'Pas assez de données pour une recommandation',
+        })
 
 class CategorieViewSet(viewsets.ModelViewSet):
     serializer_class = CategorieSerializer
