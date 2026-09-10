@@ -7,15 +7,14 @@ configuration n'est pas encore prête pour un déploiement de production.
 
 ## Fonctionnalités actuelles
 
-- Authentification par token : connexion, déconnexion et récupération de l'utilisateur courant.
+- Authentification par token : inscription, connexion, déconnexion et récupération de l'utilisateur courant.
 - Création, modification, suppression et filtrage des tâches par jour ou semaine ISO.
 - Catégories personnalisées, couleurs, emoji et quatre niveaux de priorité.
 - Tableau de bord avec statistiques et graphique Recharts des priorités.
 - Préférences utilisateur : heures productives, thème clair/sombre et notifications.
 - Recommandations via Anthropic lorsqu'une clé est disponible, avec cache, quota et repli à règles locales.
 
-Limites connues : il n'existe pas d'inscription, les statistiques de compte de
-la page Paramètres sont des valeurs de démonstration, et les habitudes utilisées
+Limites connues : les statistiques de compte de la page Paramètres sont des valeurs de démonstration, et les habitudes utilisées
 par la recommandation à règles ne sont pas enregistrées automatiquement lors de
 la complétion des tâches. Voir [AGENTS.md](AGENTS.md) pour l'état détaillé.
 
@@ -129,6 +128,7 @@ Toutes les routes API sont préfixées par `/api/`.
 | Méthode | Route | Description |
 | --- | --- | --- |
 | POST | `/api/auth/login/` | Connexion et création d'un token |
+| POST | `/api/auth/register/` | Inscription, connexion automatique et création d'un token ; cinq tentatives anonymes par heure et par IP |
 | POST | `/api/auth/logout/` | Suppression du token courant |
 | GET | `/api/auth/user/` | Utilisateur authentifié courant |
 | GET, POST | `/api/taches/` | Liste ou création des tâches de l'utilisateur |

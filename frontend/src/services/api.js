@@ -56,6 +56,7 @@ export const preferencesAPI = {
 export const authAPI = {
   login: (username, password) => 
     api.post('auth/login/', { username, password }),
+  register: (data) => api.post('auth/register/', data),
   logout: () => api.post('auth/logout/'),
   getCurrentUser: () => api.get('auth/user/'),
 };

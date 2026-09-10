@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from unittest.mock import patch
 from django.utils import timezone
 from rest_framework import status
@@ -10,6 +11,7 @@ from agenda.models import Categorie, PreferenceUtilisateur, StatistiqueUtilisati
 
 class AuthenticationEndpointsTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(
             username='alice',
             email='alice@example.com',
@@ -45,6 +47,83 @@ class AuthenticationEndpointsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data, {'error': 'Identifiants invalides'})
+
+    def test_register_normalizes_identity_creates_the_user_and_returns_a_token(self):
+        response = self.client.post(
+            '/api/auth/register/',
+            {
+                'username': 'Charlie',
+                'email': 'Charlie@Example.COM',
+                'password': 'Une phrase de passe robuste 2026!',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created_user = User.objects.get(username='charlie')
+        self.assertEqual(created_user.email, 'charlie@example.com')
+        self.assertEqual(response.data['user'], {
+            'id': created_user.id,
+            'username': 'charlie',
+            'email': 'charlie@example.com',
+        })
+        self.assertTrue(Token.objects.filter(key=response.data['token'], user=created_user).exists())
+
+    def test_register_returns_the_same_generic_error_for_an_existing_username_or_email(self):
+        username_response = self.client.post(
+            '/api/auth/register/',
+            {
+                'username': 'ALICE',
+                'email': 'nouveau@example.com',
+                'password': 'Une phrase de passe robuste 2026!',
+            },
+            format='json',
+        )
+        email_response = self.client.post(
+            '/api/auth/register/',
+            {
+                'username': 'nouvel-utilisateur',
+                'email': 'ALICE@EXAMPLE.COM',
+                'password': 'Une phrase de passe robuste 2026!',
+            },
+            format='json',
+        )
+
+        self.assertEqual(username_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(email_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(username_response.data, {'error': 'Impossible de créer ce compte.'})
+        self.assertEqual(email_response.data, {'error': 'Impossible de créer ce compte.'})
+
+    def test_register_enforces_configured_password_validators(self):
+        response = self.client.post(
+            '/api/auth/register/',
+            {
+                'username': 'nouvel-utilisateur',
+                'email': 'nouveau@example.com',
+                'password': 'court',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Mot de passe invalide.')
+        self.assertTrue(response.data['details'])
+        self.assertFalse(User.objects.filter(username='nouvel-utilisateur').exists())
+
+    def test_register_limits_anonymous_attempts_by_ip(self):
+        payload = {
+            'username': 'nouvel-utilisateur',
+            'email': 'nouveau@example.com',
+            'password': 'court',
+        }
+
+        for _ in range(5):
+            response = self.client.post('/api/auth/register/', payload, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post('/api/auth/register/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_current_user_returns_the_user_bound_to_the_token(self):
         self.authenticate_with_token()

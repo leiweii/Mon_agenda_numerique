@@ -193,6 +193,7 @@ const Login = () => {
               Pas encore de compte ?{' '}
               <Button
                 size="small"
+                onClick={() => navigate('/inscription')}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 'bold',

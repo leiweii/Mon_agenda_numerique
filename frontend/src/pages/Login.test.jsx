@@ -48,3 +48,11 @@ test('displays an error when login is rejected', async () => {
   expect(await screen.findByText("Nom d'utilisateur ou mot de passe incorrect")).toBeInTheDocument();
   expect(mockNavigate).not.toHaveBeenCalled();
 });
+
+test('navigates to registration when the sign-up button is clicked', () => {
+  render(<Login />);
+
+  fireEvent.click(screen.getByRole('button', { name: "S'inscrire" }));
+
+  expect(mockNavigate).toHaveBeenCalledWith('/inscription');
+});

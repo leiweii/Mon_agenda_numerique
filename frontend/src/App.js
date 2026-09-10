@@ -34,6 +34,7 @@ import Dashboard from './components/Statistiques/Dashboard';
 import TacheListe from './components/Taches/TacheListe';
 import CategorieListe from './components/Categories/CategorieListe';
 import Parametres from './pages/Parametres';
+import Inscription from './pages/Inscription';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import { preferencesAPI } from './services/api';
@@ -229,6 +230,7 @@ function AppContent({ onThemeChange }) {
       <Routes>
         {/* Routes publiques */}
         <Route path="/login" element={<Login />} />
+        <Route path="/inscription" element={<Inscription />} />
         
         {/* Routes protégées avec layout */}
         <Route

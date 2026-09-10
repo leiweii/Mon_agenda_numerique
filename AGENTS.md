@@ -59,7 +59,7 @@ Légende : `[ ]` absent ; `[~]` partiel ou avec limite connue ; `[x]` implément
 ### Authentification
 
 - [x] Connexion, déconnexion et utilisateur courant par token : `api/authentication.py`, `AuthContext.jsx` et `Login.jsx` sont implémentés et testés.
-- [ ] Inscription utilisateur : aucun endpoint ni écran d'inscription ; le bouton de `Login.jsx` ne déclenche aucune action.
+- [x] Inscription utilisateur : `POST /api/auth/register/`, formulaire `Inscription.jsx`, connexion automatique, validation des mots de passe Django, normalisation des identifiants et limitation à cinq tentatives anonymes par heure sont implémentés et testés.
 
 ### Tâches
 
