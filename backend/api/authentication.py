@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -7,11 +9,29 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.throttling import AnonRateThrottle
 from django.contrib.auth import authenticate
+from django.utils.text import slugify
 from rest_framework import status
 
 
 class RegistrationRateThrottle(AnonRateThrottle):
     scope = 'registration'
+
+
+def generate_username(email):
+    username_field = User._meta.get_field('username')
+    max_length = username_field.max_length
+    local_part = email.split('@', 1)[0]
+    normalized_local_part = re.sub(r'[\W_]+', ' ', local_part)
+    base_username = (slugify(normalized_local_part) or 'utilisateur')[:max_length]
+    username = base_username
+    suffix = 2
+
+    while User.objects.filter(username__iexact=username).exists():
+        suffix_text = f'-{suffix}'
+        username = f'{base_username[:max_length - len(suffix_text)]}{suffix_text}'
+        suffix += 1
+
+    return username
 
 
 def user_response(user, status_code=status.HTTP_200_OK):
@@ -28,10 +48,10 @@ def user_response(user, status_code=status.HTTP_200_OK):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-    username = request.data.get('username')
+    identifier = request.data.get('identifier') or request.data.get('username')
     password = request.data.get('password')
-    
-    user = authenticate(username=username, password=password)
+
+    user = authenticate(request, username=identifier, password=password)
     
     if user:
         return user_response(user)
@@ -46,22 +66,29 @@ def login_view(request):
 @permission_classes([AllowAny])
 @throttle_classes([RegistrationRateThrottle])
 def register_view(request):
-    username = str(request.data.get('username', '')).strip().lower()
     email = str(request.data.get('email', '')).strip().lower()
     password = request.data.get('password', '')
+    password_confirmation = request.data.get('password_confirmation', '')
 
-    if not username or not email or not isinstance(password, str) or not password:
+    if not email or not isinstance(password, str) or not password:
         return Response(
             {'error': "Données d'inscription invalides."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if User.objects.filter(username__iexact=username).exists() or User.objects.filter(email__iexact=email).exists():
+    if password != password_confirmation:
         return Response(
-            {'error': 'Impossible de créer ce compte.'},
+            {'error': 'Les mots de passe ne correspondent pas.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    if User.objects.filter(email__iexact=email).exists():
+        return Response(
+            {'error': 'Un compte existe déjà avec cette adresse e-mail.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    username = generate_username(email)
     user = User(username=username, email=email)
     try:
         validate_password(password, user=user)

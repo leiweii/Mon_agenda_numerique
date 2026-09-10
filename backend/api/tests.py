@@ -48,59 +48,117 @@ class AuthenticationEndpointsTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data, {'error': 'Identifiants invalides'})
 
-    def test_register_normalizes_identity_creates_the_user_and_returns_a_token(self):
+    def test_register_uses_email_confirmation_and_creates_a_hashed_password(self):
         response = self.client.post(
             '/api/auth/register/',
             {
-                'username': 'Charlie',
                 'email': 'Charlie@Example.COM',
                 'password': 'Une phrase de passe robuste 2026!',
+                'password_confirmation': 'Une phrase de passe robuste 2026!',
             },
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        created_user = User.objects.get(username='charlie')
-        self.assertEqual(created_user.email, 'charlie@example.com')
+        created_user = User.objects.get(email='charlie@example.com')
+        self.assertTrue(created_user.username)
+        self.assertTrue(created_user.password.startswith('pbkdf2_'))
+        self.assertTrue(created_user.check_password('Une phrase de passe robuste 2026!'))
         self.assertEqual(response.data['user'], {
             'id': created_user.id,
-            'username': 'charlie',
+            'username': created_user.username,
             'email': 'charlie@example.com',
         })
         self.assertTrue(Token.objects.filter(key=response.data['token'], user=created_user).exists())
 
-    def test_register_returns_the_same_generic_error_for_an_existing_username_or_email(self):
-        username_response = self.client.post(
+    def test_register_rejects_mismatched_password_confirmation(self):
+        response = self.client.post(
             '/api/auth/register/',
             {
-                'username': 'ALICE',
-                'email': 'nouveau@example.com',
+                'email': 'Charlie@Example.COM',
                 'password': 'Une phrase de passe robuste 2026!',
-            },
-            format='json',
-        )
-        email_response = self.client.post(
-            '/api/auth/register/',
-            {
-                'username': 'nouvel-utilisateur',
-                'email': 'ALICE@EXAMPLE.COM',
-                'password': 'Une phrase de passe robuste 2026!',
+                'password_confirmation': 'Un autre mot de passe robuste 2026!',
             },
             format='json',
         )
 
-        self.assertEqual(username_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(email_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(username_response.data, {'error': 'Impossible de créer ce compte.'})
-        self.assertEqual(email_response.data, {'error': 'Impossible de créer ce compte.'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {'error': 'Les mots de passe ne correspondent pas.'})
+        self.assertFalse(User.objects.filter(email='charlie@example.com').exists())
+
+    def test_register_reports_an_existing_email(self):
+        response = self.client.post(
+            '/api/auth/register/',
+            {
+                'email': 'ALICE@EXAMPLE.COM',
+                'password': 'Une phrase de passe robuste 2026!',
+                'password_confirmation': 'Une phrase de passe robuste 2026!',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {'error': 'Un compte existe déjà avec cette adresse e-mail.'})
+
+    def test_register_suffixes_colliding_generated_usernames(self):
+        password = 'Une phrase de passe robuste 2026!'
+        first_response = self.client.post(
+            '/api/auth/register/',
+            {
+                'email': 'jean.dupont@gmail.com',
+                'password': password,
+                'password_confirmation': password,
+            },
+            format='json',
+        )
+        second_response = self.client.post(
+            '/api/auth/register/',
+            {
+                'email': 'jean-dupont@yahoo.fr',
+                'password': password,
+                'password_confirmation': password,
+            },
+            format='json',
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(User.objects.get(email='jean.dupont@gmail.com').username, 'jean-dupont')
+        self.assertEqual(User.objects.get(email='jean-dupont@yahoo.fr').username, 'jean-dupont-2')
+
+    def test_login_accepts_existing_username_and_new_account_email(self):
+        password = 'Une phrase de passe robuste 2026!'
+        self.client.post(
+            '/api/auth/register/',
+            {
+                'email': 'charlie@example.com',
+                'password': password,
+                'password_confirmation': password,
+            },
+            format='json',
+        )
+
+        username_response = self.client.post(
+            '/api/auth/login/',
+            {'identifier': 'alice', 'password': 'secret-password'},
+            format='json',
+        )
+        email_response = self.client.post(
+            '/api/auth/login/',
+            {'identifier': 'CHARLIE@EXAMPLE.COM', 'password': password},
+            format='json',
+        )
+
+        self.assertEqual(username_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(email_response.status_code, status.HTTP_200_OK)
 
     def test_register_enforces_configured_password_validators(self):
         response = self.client.post(
             '/api/auth/register/',
             {
-                'username': 'nouvel-utilisateur',
                 'email': 'nouveau@example.com',
                 'password': 'court',
+                'password_confirmation': 'court',
             },
             format='json',
         )
@@ -108,13 +166,13 @@ class AuthenticationEndpointsTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'Mot de passe invalide.')
         self.assertTrue(response.data['details'])
-        self.assertFalse(User.objects.filter(username='nouvel-utilisateur').exists())
+        self.assertFalse(User.objects.filter(email='nouveau@example.com').exists())
 
     def test_register_limits_anonymous_attempts_by_ip(self):
         payload = {
-            'username': 'nouvel-utilisateur',
             'email': 'nouveau@example.com',
             'password': 'court',
+            'password_confirmation': 'court',
         }
 
         for _ in range(5):
