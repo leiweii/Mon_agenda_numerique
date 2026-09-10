@@ -41,7 +41,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'agenda',
     'api',
-    'rest_framework.authtoken',  # Pour gérer les tokens
+    'rest_framework.authtoken', 
 ]
 
 MIDDLEWARE = [
@@ -78,14 +78,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+from decouple import config  
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'agenda_numerique',
-        'USER': 'agenda_user',
-        'PASSWORD': 'Slw20050930..@',
-        'HOST': 'localhost',
-        'PORT': '5432',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST"),
+        "PORT": config("DB_PORT"),
     }
 }
 
