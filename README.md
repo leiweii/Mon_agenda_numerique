@@ -7,7 +7,7 @@ configuration n'est pas encore prête pour un déploiement de production.
 
 ## Fonctionnalités actuelles
 
-- Authentification par token : inscription, connexion, déconnexion et récupération de l'utilisateur courant.
+- Authentification par token : inscription par e-mail, connexion par e-mail ou username, déconnexion, récupération du compte et utilisateur courant.
 - Création, modification, suppression et filtrage des tâches par jour ou semaine ISO.
 - Catégories personnalisées, couleurs, emoji et quatre niveaux de priorité.
 - Tableau de bord avec statistiques et graphique Recharts des priorités.
@@ -69,6 +69,19 @@ DB_PORT=5432
 
 # Facultative : sans elle, les recommandations IA utilisent le repli local.
 LLM_API_KEY=cle_anthropic
+
+# Adresse publique du frontend utilisée dans les liens de réinitialisation.
+FRONTEND_URL=http://localhost:3000
+
+# En développement, la valeur par défaut est le backend console Django.
+# Pour SMTP, définir ces variables dans l'environnement, jamais dans le frontend.
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=utilisateur_smtp
+EMAIL_HOST_PASSWORD=mot_de_passe_smtp
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=noreply@example.com
 ```
 
 `LLM_API_KEY` doit rester uniquement côté backend et ne doit jamais être placée
@@ -117,7 +130,7 @@ mon_agenda/
     └── src/
         ├── components/          # Tâches, catégories, dashboard, recommandations
         ├── context/             # Authentification React
-        ├── pages/               # Accueil, connexion, paramètres
+        ├── pages/               # Accueil, connexion, inscription, récupération, paramètres
         └── services/api.js       # Client Axios
 ```
 
@@ -127,8 +140,10 @@ Toutes les routes API sont préfixées par `/api/`.
 
 | Méthode | Route | Description |
 | --- | --- | --- |
-| POST | `/api/auth/login/` | Connexion et création d'un token |
-| POST | `/api/auth/register/` | Inscription, connexion automatique et création d'un token ; cinq tentatives anonymes par heure et par IP |
+| POST | `/api/auth/login/` | Connexion par `identifier` (e-mail ou username) et création d'un token ; cinq tentatives anonymes par quinze minutes |
+| POST | `/api/auth/register/` | Inscription avec `email`, `password` et `password_confirmation`, connexion automatique et username interne généré ; cinq tentatives anonymes par heure et par IP |
+| POST | `/api/auth/mot-de-passe-oublie/` | Demande de lien de réinitialisation ; réponse identique pour tout e-mail, quota de cinq par IP et trois par e-mail normalisé et haché |
+| POST | `/api/auth/reinitialiser-mot-de-passe/` | Réinitialisation avec `uid`, `token`, `password` et `password_confirmation` ; token Django et quota de cinq tentatives par IP |
 | POST | `/api/auth/logout/` | Suppression du token courant |
 | GET | `/api/auth/user/` | Utilisateur authentifié courant |
 | GET, POST | `/api/taches/` | Liste ou création des tâches de l'utilisateur |

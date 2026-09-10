@@ -59,7 +59,9 @@ Légende : `[ ]` absent ; `[~]` partiel ou avec limite connue ; `[x]` implément
 ### Authentification
 
 - [x] Connexion, déconnexion et utilisateur courant par token : `api/authentication.py`, `AuthContext.jsx` et `Login.jsx` sont implémentés et testés.
-- [x] Inscription utilisateur : `POST /api/auth/register/`, formulaire `Inscription.jsx`, connexion automatique, validation des mots de passe Django, normalisation des identifiants et limitation à cinq tentatives anonymes par heure sont implémentés et testés.
+- [x] Inscription utilisateur : `POST /api/auth/register/`, formulaire e-mail sans username visible, connexion automatique, confirmation, validation des mots de passe Django, normalisation et génération de username interne avec collision gérée sont implémentés et testés.
+- [x] Connexion e-mail ou username : un même champ `identifier` accepte les comptes existants par username et les nouveaux comptes par e-mail ; les erreurs restent génériques et le quota est de cinq tentatives anonymes par quinze minutes.
+- [x] Mot de passe oublié et réinitialisation : les routes `mot-de-passe-oublie` et `reinitialiser-mot-de-passe` utilisent les tokens Django, un message de demande générique, les validateurs Django et les quotas IP/e-mail configurés ; les formulaires et tests React correspondants sont présents.
 
 ### Tâches
 
