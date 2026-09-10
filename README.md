@@ -213,8 +213,20 @@ GET    /api/taches/aujourd_hui/  # Tâches du jour
 GET    /api/taches/cette_semaine/ # Tâches de la semaine
 GET    /api/taches/statistiques/  # Statistiques
 GET    /api/taches/meilleur_moment/ # Recommandations
+GET    /api/taches/recommandation_ia/
 ```
 
+### Recommandations IA
+
+`GET /api/taches/recommandation_ia/` exige le token d'authentification habituel.
+Il renvoie une recommandation au format JSON documente dans
+[`docs/llm-contract.md`](docs/llm-contract.md). Le backend utilise la variable
+`LLM_API_KEY`, a renseigner dans `backend/.env` (ou dans l'environnement du
+processus Django) : elle ne doit jamais etre ajoutee au frontend ni committee.
+
+En l'absence de cle, en cas d'erreur du fournisseur ou de reponse invalide, le
+backend renvoie automatiquement la recommandation de secours fondee sur les
+regles existantes, dans le meme format JSON.
 ### Catégories
 ```
 GET    /api/categories/          # Liste des catégories

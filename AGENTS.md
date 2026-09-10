@@ -195,10 +195,10 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - `RecommandationsIA.test.jsx` couvre le skeleton, l'affichage du contrat de succès et le message d'erreur.
 
 ### 5.7 Documentation
-- [ ] README : nouvel endpoint + variable `LLM_API_KEY`
-  - Aucun README racine et aucun document LLM trouvé.
-- [ ] Format du prompt et de la réponse JSON documenté ici ou dans `/docs`
-  - Aucun service, contrat JSON ou dossier de documentation LLM trouvé.
+- [x] README : nouvel endpoint + variable `LLM_API_KEY`
+  - `README.md` documente `GET /api/taches/recommandation_ia/`, son authentification et la configuration backend sans exposer la clé au React.
+- [x] Format du prompt et de la réponse JSON documenté ici ou dans `/docs`
+  - `docs/llm-contract.md` décrit le prompt structuré, la normalisation des données et le contrat JSON commun au LLM et au fallback.
 
 ---
 
