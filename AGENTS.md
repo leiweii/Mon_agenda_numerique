@@ -189,10 +189,10 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - Le composant est affiché dans `components/Statistiques/Dashboard.jsx` à la place de l'ancien encart de règles.
 
 ### 5.6 Tests
-- [ ] Backend : mock de l'appel LLM, test du parsing, test du fallback
-  - `backend/api/tests.py` ne contient aucun test métier.
-- [ ] Frontend : rendu du composant en loading / succès / erreur
-  - Aucun composant IA; `App.test.js` est le test CRA par défaut.
+- [x] Backend : mock de l'appel LLM, test du parsing, test du fallback
+  - `test_llm_service.py` couvre le mock Anthropic et le parsing; `test_llm_performance_endpoint.py` couvre les réponses invalides, exceptions et le fallback à règles.
+- [x] Frontend : rendu du composant en loading / succès / erreur
+  - `RecommandationsIA.test.jsx` couvre le skeleton, l'affichage du contrat de succès et le message d'erreur.
 
 ### 5.7 Documentation
 - [ ] README : nouvel endpoint + variable `LLM_API_KEY`
