@@ -92,3 +92,6 @@ class PreferenceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return PreferenceUtilisateur.objects.filter(utilisateur=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(utilisateur=self.request.user)

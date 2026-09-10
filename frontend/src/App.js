@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -36,12 +36,14 @@ import CategorieListe from './components/Categories/CategorieListe';
 import Parametres from './pages/Parametres';
 import Login from './pages/Login';
 import Home from './pages/Home';
+import { preferencesAPI } from './services/api';
 
 const DRAWER_WIDTH = 240;
 
 // Thème personnalisé
-const theme = createTheme({
+const createAppTheme = (themeName) => createTheme({
   palette: {
+    mode: themeName === 'sombre' ? 'dark' : 'light',
     primary: {
       main: '#667eea',
       lighter: '#e8eaf6',
@@ -221,7 +223,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // Composant principal
-function AppContent() {
+function AppContent({ onThemeChange }) {
   return (
     <Router>
       <Routes>
@@ -278,7 +280,7 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Parametres />
+                <Parametres onThemeChange={onThemeChange} />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -288,14 +290,47 @@ function AppContent() {
   );
 }
 
-function App() {
+function AuthenticatedApp() {
+  const { user } = useAuth();
+  const [themeName, setThemeName] = useState('clair');
+  const theme = useMemo(() => createAppTheme(themeName), [themeName]);
+
+  useEffect(() => {
+    if (!user) {
+      setThemeName('clair');
+      return;
+    }
+
+    const chargerTheme = async () => {
+      try {
+        const response = await preferencesAPI.get();
+        const preference = response.data[0];
+        setThemeName(preference?.theme === 'sombre' ? 'sombre' : 'clair');
+      } catch (error) {
+        console.error('Erreur chargement thème:', error);
+      }
+    };
+
+    chargerTheme();
+  }, [user]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeName;
+  }, [themeName]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <AppContent onThemeChange={(theme) => setThemeName(theme === 'sombre' ? 'sombre' : 'clair')} />
     </ThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
   );
 }
 

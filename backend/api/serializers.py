@@ -23,9 +23,20 @@ class TacheSerializer(serializers.ModelSerializer):
         read_only_fields = ['utilisateur', 'date_creation']
 
 class PreferenceUtilisateurSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        debut = attrs.get('heure_productive_debut', getattr(self.instance, 'heure_productive_debut', None))
+        fin = attrs.get('heure_productive_fin', getattr(self.instance, 'heure_productive_fin', None))
+
+        if debut and fin and debut >= fin:
+            raise serializers.ValidationError({
+                'heure_productive_fin': 'L heure de fin doit être postérieure à l heure de début.'
+            })
+        return attrs
+
     class Meta:
         model = PreferenceUtilisateur
         fields = '__all__'
+        read_only_fields = ['utilisateur']
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

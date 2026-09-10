@@ -28,7 +28,7 @@ import {
 import { preferencesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const Parametres = () => {
+const Parametres = ({ onThemeChange }) => {
   const { user } = useAuth();
   const [preferences, setPreferences] = useState({
     heure_productive_debut: '09:00',
@@ -37,6 +37,8 @@ const Parametres = () => {
     notifications_actives: true,
   });
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     chargerPreferences();
@@ -50,6 +52,7 @@ const Parametres = () => {
       }
     } catch (error) {
       console.error('Erreur chargement préférences:', error);
+      setError('Impossible de charger vos préférences.');
     }
   };
 
@@ -62,15 +65,23 @@ const Parametres = () => {
 
   const handleSave = async () => {
     try {
+      setSaving(true);
+      setError('');
+      let response;
       if (preferences.id) {
-        await preferencesAPI.update(preferences.id, preferences);
+        response = await preferencesAPI.update(preferences.id, preferences);
       } else {
-        await preferencesAPI.create(preferences);
+        response = await preferencesAPI.create(preferences);
       }
+      setPreferences(response.data);
+      onThemeChange(response.data.theme);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Erreur sauvegarde:', error);
+      setError('Impossible de sauvegarder vos préférences.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -89,6 +100,11 @@ const Parametres = () => {
       {success && (
         <Alert severity="success" sx={{ mb: 3 }}>
           Paramètres sauvegardés avec succès !
+        </Alert>
+      )}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
         </Alert>
       )}
 
@@ -178,7 +194,6 @@ const Parametres = () => {
                 >
                   <MenuItem value="clair">☀️ Clair</MenuItem>
                   <MenuItem value="sombre">🌙 Sombre</MenuItem>
-                  <MenuItem value="auto">🔄 Automatique</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -199,6 +214,7 @@ const Parametres = () => {
                     checked={preferences.notifications_actives}
                     onChange={handleChange('notifications_actives')}
                     color="primary"
+                    inputProps={{ 'aria-label': 'Activer les notifications' }}
                   />
                 }
                 label="Activer les notifications"
@@ -217,8 +233,9 @@ const Parametres = () => {
                 startIcon={<SaveIcon />}
                 onClick={handleSave}
                 size="large"
+                disabled={saving}
               >
-                Enregistrer les modifications
+                {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
               </Button>
             </Box>
           </Paper>

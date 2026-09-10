@@ -47,6 +47,7 @@ export const categoriesAPI = {
 // Services pour les préférences
 export const preferencesAPI = {
   get: () => api.get('preferences/'),
+  create: (data) => api.post('preferences/', data),
   update: (id, data) => api.put(`preferences/${id}/`, data),
 };
 

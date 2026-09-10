@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 from datetime import datetime, time, timedelta
-from agenda.models import Categorie, Tache
+from agenda.models import Categorie, PreferenceUtilisateur, Tache
 
 
 class AuthenticationEndpointsTests(APITestCase):
@@ -313,6 +313,73 @@ class CategorieEndpointsTests(APITestCase):
         self.assertTrue(Tache.objects.filter(pk=task.id).exists())
         task.refresh_from_db()
         self.assertIsNone(task.categorie)
+
+
+class PreferenceEndpointsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def preference_payload(self, **overrides):
+        payload = {
+            'heure_productive_debut': '08:30:00',
+            'heure_productive_fin': '16:30:00',
+            'theme': 'sombre',
+            'notifications_actives': False,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_assigns_preferences_to_the_authenticated_user(self):
+        response = self.client.post('/api/preferences/', self.preference_payload(), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        preference = PreferenceUtilisateur.objects.get(pk=response.data['id'])
+        self.assertEqual(preference.utilisateur, self.user)
+        self.assertEqual(preference.theme, 'sombre')
+        self.assertFalse(preference.notifications_actives)
+
+    def test_update_changes_the_authenticated_users_existing_preferences(self):
+        preference = PreferenceUtilisateur.objects.create(
+            utilisateur=self.user,
+            heure_productive_debut='09:00',
+            heure_productive_fin='17:00',
+            theme='clair',
+            notifications_actives=True,
+        )
+
+        response = self.client.put(
+            f'/api/preferences/{preference.id}/',
+            self.preference_payload(),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        preference.refresh_from_db()
+        self.assertEqual(preference.theme, 'sombre')
+        self.assertFalse(preference.notifications_actives)
+
+    def test_preferences_reject_an_invalid_theme(self):
+        response = self.client.post(
+            '/api/preferences/',
+            self.preference_payload(theme='auto'),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('theme', response.data)
+
+    def test_preferences_reject_a_productive_time_range_ending_before_it_starts(self):
+        response = self.client.post(
+            '/api/preferences/',
+            self.preference_payload(heure_productive_debut='18:00:00', heure_productive_fin='09:00:00'),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('heure_productive_fin', response.data)
 
 
 class StatistiquesEndpointsTests(APITestCase):

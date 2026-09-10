@@ -117,12 +117,12 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
   - Aucun service, endpoint ou composant LLM trouvé.
 
 ### Préférences & paramètres
-- [~] Heures productives
-  - Modèle et formulaire présents dans `backend/agenda/models.py` et `Parametres.jsx`; création front manquante dans `preferencesAPI` et aucun test.
-- [~] Thème clair/sombre
-  - Valeur enregistrable dans les préférences, mais le thème MUI fixe de `App.js` ne l'utilise pas; aucun test.
-- [~] Notifications configurables
-  - Interrupteur et champ de préférence présents, mais aucune notification réelle ni test.
+- [x] Heures productives
+  - `PreferenceUtilisateur` valide une plage début/fin cohérente; création, mise à jour et formulaire sont couverts par les tests.
+- [x] Thème clair/sombre
+  - Les seuls thèmes `clair` et `sombre` sont validés, `auto` existant est migré vers `clair`, et le thème MUI est chargé au démarrage puis appliqué après sauvegarde.
+- [x] Notifications configurables
+  - L'interrupteur est persisté via `/api/preferences/` et couvert par les tests de création du formulaire et de l'endpoint.
 
 ### Auth
 - [x] Login / logout / utilisateur courant (token auth)
