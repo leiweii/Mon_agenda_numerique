@@ -230,3 +230,63 @@ class TacheEndpointsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual({task['id'] for task in response.data}, {task.id for task in tasks})
+
+
+class CategorieEndpointsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice', password='secret-password')
+        self.other_user = User.objects.create_user(username='bob', password='secret-password')
+        self.category = Categorie.objects.create(utilisateur=self.user, nom='Travail')
+        self.other_category = Categorie.objects.create(utilisateur=self.other_user, nom='Privé')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def test_list_returns_only_the_authenticated_users_categories(self):
+        response = self.client.get('/api/categories/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([category['id'] for category in response.data], [self.category.id])
+
+    def test_create_assigns_the_authenticated_user_to_the_category(self):
+        response = self.client.post(
+            '/api/categories/',
+            {'nom': 'Santé', 'couleur': '#2ecc71', 'emoji': '💪'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        category = Categorie.objects.get(pk=response.data['id'])
+        self.assertEqual(category.utilisateur, self.user)
+        self.assertEqual(category.nom, 'Santé')
+
+    def test_update_cannot_transfer_a_category_to_another_user(self):
+        response = self.client.put(
+            f'/api/categories/{self.category.id}/',
+            {
+                'nom': 'Travail important',
+                'couleur': '#3498db',
+                'emoji': '💼',
+                'utilisateur': self.other_user.id,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.category.refresh_from_db()
+        self.assertEqual(self.category.nom, 'Travail important')
+        self.assertEqual(self.category.utilisateur, self.user)
+
+    def test_delete_category_keeps_tasks_and_clears_their_category(self):
+        task = Tache.objects.create(
+            utilisateur=self.user,
+            titre='Préparer la réunion',
+            date_echeance=timezone.now(),
+            categorie=self.category,
+        )
+
+        response = self.client.delete(f'/api/categories/{self.category.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertTrue(Tache.objects.filter(pk=task.id).exists())
+        task.refresh_from_db()
+        self.assertIsNone(task.categorie)

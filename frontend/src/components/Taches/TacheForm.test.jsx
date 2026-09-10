@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TacheForm from './TacheForm';
 
 jest.mock('@mui/x-date-pickers/DateTimePicker', () => ({
@@ -44,4 +44,29 @@ test('keeps the form open and displays an error when saving a task fails', async
 
   expect(await screen.findByText("Impossible d'enregistrer la tâche.")).toBeInTheDocument();
   expect(onClose).not.toHaveBeenCalled();
+});
+
+test('submits the selected category identifier with a task', async () => {
+  const onSubmit = jest.fn().mockResolvedValue();
+
+  render(
+    <TacheForm
+      open
+      onClose={jest.fn()}
+      onSubmit={onSubmit}
+      tache={null}
+      categories={[{ id: 12, nom: 'Travail', emoji: '💼' }]}
+    />
+  );
+
+  fireEvent.change(screen.getByLabelText(/Titre/), {
+    target: { value: 'Préparer la réunion' },
+  });
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Catégorie' }));
+  fireEvent.click(screen.getByRole('option', { name: '💼 Travail' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Créer' }));
+
+  await waitFor(() => {
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ categorie: 12 }));
+  });
 });

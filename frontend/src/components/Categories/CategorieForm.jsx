@@ -9,6 +9,7 @@ import {
   Grid,
   Box,
   Typography,
+  Alert,
 } from '@mui/material';
 
 const EMOJIS_CATEGORIES = [
@@ -29,6 +30,8 @@ const CategorieForm = ({ open, onClose, onSubmit, categorie }) => {
     couleur: '#3498db',
     emoji: '📁',
   });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (categorie) {
@@ -46,9 +49,17 @@ const CategorieForm = ({ open, onClose, onSubmit, categorie }) => {
     setFormData({ ...formData, [field]: event.target.value });
   };
 
-  const handleSubmit = () => {
-    onSubmit(formData);
-    onClose();
+  const handleSubmit = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      await onSubmit(formData);
+      onClose();
+    } catch (submitError) {
+      setError("Impossible d'enregistrer la catégorie.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -58,6 +69,7 @@ const CategorieForm = ({ open, onClose, onSubmit, categorie }) => {
       </DialogTitle>
       
       <DialogContent>
+        {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
         <Grid container spacing={3} sx={{ mt: 1 }}>
           {/* Nom */}
           <Grid item xs={12}>
@@ -158,9 +170,9 @@ const CategorieForm = ({ open, onClose, onSubmit, categorie }) => {
           onClick={handleSubmit} 
           variant="contained" 
           color="primary"
-          disabled={!formData.nom}
+          disabled={!formData.nom || saving}
         >
-          {categorie ? 'Modifier' : 'Créer'}
+          {saving ? 'Enregistrement...' : categorie ? 'Modifier' : 'Créer'}
         </Button>
       </DialogActions>
     </Dialog>

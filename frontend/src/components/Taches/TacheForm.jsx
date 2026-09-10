@@ -143,8 +143,9 @@ const TacheForm = ({ open, onClose, onSubmit, tache, categories }) => {
           {/* Catégorie */}
           <Grid item xs={12}>
             <FormControl fullWidth>
-              <InputLabel>Catégorie</InputLabel>
+              <InputLabel id="categorie-label">Catégorie</InputLabel>
               <Select
+                labelId="categorie-label"
                 value={formData.categorie}
                 onChange={handleChange('categorie')}
                 label="Catégorie"

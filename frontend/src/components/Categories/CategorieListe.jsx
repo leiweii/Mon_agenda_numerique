@@ -45,21 +45,13 @@ const CategorieListe = () => {
   };
 
   const handleCreate = async (data) => {
-    try {
-      await categoriesAPI.create(data);
-      chargerDonnees();
-    } catch (error) {
-      console.error('Erreur de création:', error);
-    }
+    await categoriesAPI.create(data);
+    await chargerDonnees();
   };
 
   const handleUpdate = async (data) => {
-    try {
-      await categoriesAPI.update(categorieSelectionnee.id, data);
-      chargerDonnees();
-    } catch (error) {
-      console.error('Erreur de mise à jour:', error);
-    }
+    await categoriesAPI.update(categorieSelectionnee.id, data);
+    await chargerDonnees();
   };
 
   const handleDelete = async (id) => {
@@ -161,6 +153,7 @@ const CategorieListe = () => {
                         size="small" 
                         onClick={() => handleEdit(categorie)}
                         color="primary"
+                        aria-label={`Modifier ${categorie.nom}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -168,6 +161,7 @@ const CategorieListe = () => {
                         size="small" 
                         onClick={() => handleDelete(categorie.id)}
                         color="error"
+                        aria-label={`Supprimer ${categorie.nom}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>

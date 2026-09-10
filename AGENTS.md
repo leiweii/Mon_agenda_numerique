@@ -97,8 +97,8 @@ Variables d'environnement attendues dans `.env` (racine) : voir README section I
 ### Personnalisation
 - [~] Emoji + couleur par tâche
   - Champs modèle et sélecteurs dans `TacheForm.jsx` présents; validation et tests absents.
-- [~] Catégories personnalisées (CRUD)
-  - ViewSet et composants CRUD présents dans `backend/api/views.py` et `frontend/src/components/Categories/`; aucun test.
+- [x] Catégories personnalisées (CRUD)
+  - CRUD isolé par utilisateur, formulaire React et attribution à une tâche couverts par les tests ; supprimer une catégorie conserve les tâches avec `categorie=null`.
 - [~] Système de priorités (4 niveaux)
   - Les quatre choix sont définis dans `backend/agenda/models.py` et affichés côté React; aucun test.
 

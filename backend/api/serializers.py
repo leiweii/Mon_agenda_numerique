@@ -6,6 +6,7 @@ class CategorieSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categorie
         fields = '__all__'
+        read_only_fields = ['utilisateur']
 
 class TacheSerializer(serializers.ModelSerializer):
     categorie_nom = serializers.CharField(source='categorie.nom', read_only=True)
