@@ -7,9 +7,20 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 import logging
+import time
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
 from .serializers import TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
 from .llm_service import appeler_llm, construire_prompt, parser_reponse
+from .llm_performance import (
+    construire_cle_cache,
+    ecrire_cache,
+    finaliser_appel_llm,
+    journaliser_appel_llm,
+    obtenir_cache,
+    obtenir_derniere_cache_valide,
+    purger_journaux_si_necessaire,
+    reserver_appel_llm,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -96,16 +107,84 @@ class RecommandationIAView(APIView):
     def get(self, request):
         taches = Tache.objects.filter(utilisateur=request.user).select_related('categorie')
         preferences = PreferenceUtilisateur.objects.filter(utilisateur=request.user).first()
-
         try:
             prompt = construire_prompt(taches, preferences)
+        except Exception as error:
+            logger.warning('Construction de recommandation IA indisponible: %s', type(error).__name__)
+            return Response(_recommandation_meilleur_moment(request.user))
+
+        purger_journaux_si_necessaire()
+        cle_cache = construire_cle_cache(request.user, taches, preferences)
+        recommandation = obtenir_cache(request.user, cle_cache)
+        if _recommandation_valide(recommandation):
+            journaliser_appel_llm(
+                request.user,
+                prompt,
+                status='cache_hit',
+                cache_hit=True,
+            )
+            return Response(recommandation)
+
+        reservation = reserver_appel_llm(request.user, prompt)
+        if reservation is None:
+            recommandation = obtenir_derniere_cache_valide(request.user)
+            if _recommandation_valide(recommandation):
+                journaliser_appel_llm(
+                    request.user,
+                    prompt,
+                    status='quota_cache',
+                    cache_hit=True,
+                )
+                return Response(recommandation)
+
+            recommandation = _recommandation_meilleur_moment(request.user)
+            journaliser_appel_llm(
+                request.user,
+                prompt,
+                status='quota_fallback',
+                cache_hit=False,
+            )
+            return Response(recommandation)
+
+        debut = time.monotonic()
+        try:
             texte_llm = appeler_llm(prompt)
             recommandation = parser_reponse(texte_llm) if texte_llm else None
-        except Exception:
-            logger.warning('Pipeline de recommandation IA indisponible, fallback applique')
-            recommandation = None
+        except Exception as error:
+            duree_ms = round((time.monotonic() - debut) * 1000)
+            finaliser_appel_llm(
+                reservation,
+                success=False,
+                duration_ms=duree_ms,
+                error_type=type(error).__name__,
+            )
+            logger.warning('Appel de recommandation IA indisponible: %s', type(error).__name__)
+            return Response(_recommandation_meilleur_moment(request.user))
 
-        return Response(recommandation or _recommandation_meilleur_moment(request.user))
+        duree_ms = round((time.monotonic() - debut) * 1000)
+        if not _recommandation_valide(recommandation):
+            finaliser_appel_llm(
+                reservation,
+                success=False,
+                duration_ms=duree_ms,
+                error_type='InvalidResponse' if texte_llm else 'LLMUnavailable',
+            )
+            return Response(_recommandation_meilleur_moment(request.user))
+
+        try:
+            ecrire_cache(request.user, cle_cache, recommandation)
+        except Exception as error:
+            logger.warning('Ecriture du cache de recommandation IA echouee: %s', type(error).__name__)
+        finaliser_appel_llm(reservation, success=True, duration_ms=duree_ms)
+        return Response(recommandation)
+
+
+def _recommandation_valide(recommandation):
+    return (
+        isinstance(recommandation, dict)
+        and isinstance(recommandation.get('heures_recommandees'), list)
+        and isinstance(recommandation.get('message'), str)
+    )
 
 class CategorieViewSet(viewsets.ModelViewSet):
     serializer_class = CategorieSerializer

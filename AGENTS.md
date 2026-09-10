@@ -169,12 +169,12 @@ surcharge), à partir des tâches/catégories/préférences existantes.
   - Échec technique, absence de réponse ou JSON invalide renvoient le même helper de règles que `/api/taches/meilleur_moment/`.
 
 ### 5.4 Coût / performance
-- [ ] Cache des résultats (recalcul 1x/jour ou si les tâches changent)
-  - Aucun mécanisme de cache pour des recommandations IA.
-- [ ] Rate limiting par utilisateur
-  - Aucun mécanisme de limitation pour des recommandations IA.
-- [ ] Logging des appels (prompt, durée, succès/échec)
-  - Aucun appel LLM ni journalisation associée.
+- [x] Cache des résultats (recalcul 1x/jour ou si les tâches changent)
+  - Cache PostgreSQL TTL 24 h, scoppé utilisateur et invalidé par les signaux tâches/préférences.
+- [x] Rate limiting par utilisateur
+  - Au plus 10 réservations LLM externes par jour; au-delà, cache valide puis fallback à règles.
+- [x] Logging des appels (prompt, durée, succès/échec)
+  - Journaux de métadonnées hachées, durée/statut/cache hit/type d'erreur et purge probabiliste après 30 jours.
 
 ### 5.5 Frontend
 - [ ] `frontend/src/components/RecommandationsIA.jsx`
