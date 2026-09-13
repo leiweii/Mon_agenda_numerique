@@ -1,6 +1,6 @@
 # AGENTS.md - Guide de reprise du projet
 
-Ce fichier est le point d'entree pour un agent Godex/Codex ou pour une personne
+Ce fichier est le point d'entree pour un agent Codex ou pour une personne
 qui decouvre le depot. Il doit rester court, vrai et actionnable. Les details
 de conception longs vivent dans `docs/` ou `docs/superpowers/plans/`.
 
