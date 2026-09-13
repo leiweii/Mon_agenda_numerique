@@ -1,28 +1,54 @@
-# AGENTS.md - Guide de travail
+# AGENTS.md - Guide de reprise du projet
 
-## 1. Contexte et stack
+Ce fichier est le point d'entree pour un agent Godex/Codex ou pour une personne
+qui decouvre le depot. Il doit rester court, vrai et actionnable. Les details
+de conception longs vivent dans `docs/` ou `docs/superpowers/plans/`.
 
-**Mon Agenda Numérique** est une application personnelle de gestion de tâches.
-Le projet est en développement ; l'état ci-dessous est issu du code présent dans
-`backend/` et `frontend/src/`, et non des annonces antérieures.
+## 1. Projet en une minute
 
-- Backend : Python, Django 6, Django REST Framework, PostgreSQL, authentification par token.
-- Frontend : React 19, React Router 7, Material UI 7, Axios, Recharts et date-fns.
-- Recommandations : SDK Anthropic côté Django, avec repli local déterministe.
+**Mon Agenda Numerique** est une application personnelle de gestion de taches.
+Elle combine un backend Django REST, un frontend React/MUI et un module de
+recommandations d'horaires avec appel Anthropic optionnel et repli local.
 
-## 2. Commandes de développement
+Le projet est fonctionnel en developpement local, mais il n'est pas pret pour
+la production. Les principaux points non termines sont l'inscription utilisateur,
+la recuperation de mot de passe, les statistiques de compte reelles,
+l'alimentation automatique des habitudes et la configuration de deploiement.
 
-### Backend
+Stack actuelle :
 
-Depuis la racine du dépôt :
+- Backend : Python, Django 6, Django REST Framework, PostgreSQL, token auth.
+- Frontend : React 19, React Router 7, Material UI 7, Axios, Recharts, date-fns.
+- IA : SDK `anthropic` cote Django, avec repli deterministe si aucune cle n'est disponible.
+
+## 2. Carte rapide du code
+
+- `backend/backend/settings.py` : configuration Django, base de donnees, CORS, apps.
+- `backend/api/authentication.py` : login, logout et utilisateur courant.
+- `backend/api/models.py` : taches, categories, preferences, statistiques, cache et journaux LLM.
+- `backend/api/serializers.py` : contrats JSON exposes par l'API.
+- `backend/api/views.py` : viewsets REST, statistiques, recommandations a regles et IA.
+- `backend/api/llm_service.py` : prompt, appel Anthropic, parsing et validation de reponse.
+- `backend/api/llm_performance.py` : cache, quota, journalisation et purge LLM.
+- `backend/api/signals.py` : invalidation du cache de recommandation.
+- `frontend/src/services/api.js` : client Axios et base URL locale.
+- `frontend/src/context/AuthContext.jsx` : etat d'authentification React.
+- `frontend/src/pages/` : pages principales (`Home`, `Login`, `Parametres`).
+- `frontend/src/components/Taches/` : liste, carte et formulaire de taches.
+- `frontend/src/components/Categories/` : CRUD des categories.
+- `frontend/src/components/Statistiques/` : dashboard et graphique de priorites.
+- `frontend/src/components/RecommandationsIA.jsx` : carte de recommandation IA.
+- `docs/llm-contract.md` : contrat prompt/reponse des recommandations.
+- `docs/llm-cache-quota-logging.md` : architecture cache, quota et journalisation.
+- `docs/superpowers/plans/2026-09-10-llm-cache-quota-logging.md` : plan de mise en oeuvre detaille du controle cache/quota/journaux.
+
+## 3. Commandes utiles
+
+Backend, depuis la racine du depot :
 
 ```bash
 python -m venv venv
-# Windows
 venv\Scripts\activate
-# macOS / Linux
-source venv/bin/activate
-
 cd backend
 pip install -r requirements.txt
 python manage.py migrate
@@ -30,9 +56,7 @@ python manage.py runserver
 python manage.py test
 ```
 
-Le serveur écoute sur `http://localhost:8000`.
-
-### Frontend
+Frontend :
 
 ```bash
 cd frontend
@@ -41,57 +65,111 @@ npm start
 npm test -- --watchAll=false
 ```
 
-Le serveur de développement React écoute normalement sur `http://localhost:3000`.
+Serveurs locaux attendus :
 
-## 3. Règles de travail pour un agent IA
+- API Django : `http://localhost:8000`
+- Frontend React : `http://localhost:3000`
+- Base API frontend actuelle : `http://localhost:8000/api/`
 
-- Une tâche fonctionnelle correspond à un commit isolé. Ne pas mélanger des refontes sans lien.
-- Écrire ou adapter les tests concernés et exécuter `python manage.py test` ainsi que `npm test` avant de déclarer une tâche terminée.
-- Ne jamais ajouter de secret dans le code, dans le frontend ou dans Git. Les clés passent par l'environnement et restent côté backend.
-- Respecter les conventions, le nommage et les bibliothèques déjà employés dans le fichier modifié. Pour les nouveaux composants MUI, employer l'API MUI 7 (`size`) plutôt que l'ancienne API `item xs` encore visible dans certains formulaires.
-- Ne pas modifier les migrations, dépendances ou code applicatif pour une tâche de documentation.
-- Mettre à jour l'état ci-dessous après une évolution vérifiée par les tests.
+## 4. Maniere de travailler dans ce depot
 
-## 4. État d'avancement
+- Une tache fonctionnelle doit correspondre a un lot/commit coherent. Ne pas
+  melanger une fonctionnalite, une refonte et une correction sans lien.
+- Avant de modifier une zone, lire les fichiers concernes et les tests deja
+  presents. Suivre les conventions locales plutot qu'introduire un style neuf.
+- Pour un changement complexe, ne pas dupliquer toute la conception dans ce
+  fichier. Creer ou mettre a jour un document dans `docs/` ou
+  `docs/superpowers/plans/`, puis mettre ici seulement le lien et l'etat resume.
+- S'arreter et demander confirmation avant toute decision architecturale :
+  changement de backend d'authentification, modification de modele de donnees,
+  migration touchant des donnees existantes, ou choix qui contraint durablement
+  les interfaces backend/frontend.
+- La section **Etat reel actuel** doit etre mise a jour a chaque lot/commit
+  termine et teste. Elle ne doit pas etre reservee aux audits ponctuels, sinon
+  elle redevient obsolete comme un ancien README.
+- Ajouter ou adapter les tests au meme moment que le comportement modifie.
+  Avant de declarer un lot termine, executer les tests backend et frontend
+  pertinents, ou expliquer clairement ce qui n'a pas pu etre lance.
+- Ne jamais ajouter de secret dans Git, le frontend, les tests ou la
+  documentation. Les cles LLM restent cote backend via l'environnement.
+- Ne pas modifier les migrations, dependances ou code applicatif pour une tache
+  purement documentaire.
+- Pour les nouveaux composants MUI, preferer l'API MUI 7 (`size`) plutot que
+  l'ancienne API Grid (`item`, `xs`, `sm`, `md`) encore presente dans certains
+  composants.
+- Proteger les changements utilisateur existants : ne pas annuler des fichiers
+  modifies sans demande explicite.
 
-Légende : `[ ]` absent ; `[~]` partiel ou avec limite connue ; `[x]` implémenté et couvert par les tests présents.
+## 5. Etat reel actuel
+
+Legende : `[x]` implemente et couvert par les tests presents ; `[~]` partiel ou
+avec limite connue ; `[ ]` absent.
 
 ### Authentification
 
-- [x] Connexion, déconnexion et utilisateur courant par token : `api/authentication.py`, `AuthContext.jsx` et `Login.jsx` sont implémentés et testés.
-- [ ] Inscription utilisateur : aucun endpoint ni écran d'inscription ; le bouton de `Login.jsx` ne déclenche aucune action.
+- [x] Connexion, deconnexion et utilisateur courant par token.
+  Fichiers principaux : `backend/api/authentication.py`,
+  `frontend/src/context/AuthContext.jsx`, `frontend/src/pages/Login.jsx`.
+- [ ] Inscription utilisateur sur la branche courante `main`. Aucun endpoint
+  `POST /api/auth/register/` ni ecran d'inscription n'existe dans le code a la
+  racine ; le bouton d'inscription de `Login.jsx` ne lance pas encore de flux
+  reel.
+- [ ] Mot de passe oublie et reinitialisation. Aucun endpoint ni ecran dedie
+  n'existe dans le code a la racine.
 
-### Tâches
+### Taches et categories
 
-- [x] CRUD des tâches : titre, description, échéance, priorité, catégorie, couleur, emoji et état complété sont gérés par `TacheViewSet` et les composants `Taches/`.
-- [x] Listes générale, du jour et de la semaine ISO : actions `aujourd_hui` et `cette_semaine`, filtres correspondants dans `TacheListe.jsx`.
-- [x] Catégories personnalisées : CRUD utilisateur-scopé ; supprimer une catégorie conserve les tâches avec une catégorie nulle (`SET_NULL`).
-- [x] Priorités à quatre niveaux et affichage visuel : modèle, sérialiseur, formulaire et cartes de tâche.
-- [x] Emoji et couleur par tâche : validation de couleur hexadécimale côté backend et sélecteurs dans le formulaire.
+- [x] CRUD des taches avec titre, description, echeance, priorite, categorie,
+  couleur, emoji et etat complete.
+- [x] Filtres "aujourd'hui" et semaine ISO via les actions API correspondantes.
+- [x] CRUD des categories personnalisees, scope par utilisateur.
+- [x] Suppression d'une categorie avec conservation des taches associees via
+  categorie nulle.
 
-### Préférences et interface
+### Preferences et interface
 
-- [x] Préférences utilisateur : heures productives, thème clair/sombre et notifications sont persistés et modifiables depuis `Parametres.jsx`.
-- [x] Thème initial : l'application charge la préférence sauvegardée au démarrage ; les anciennes valeurs `auto` sont normalisées par migration.
-- [~] Responsive : `Home`, `Parametres` et `Dashboard` utilisent les breakpoints MUI 7 et ont des tests dédiés ; `TacheForm.jsx` et les composants de catégories utilisent encore l'ancienne API Grid (`item`, `xs`, `sm`, `md`), qui produit des avertissements sous MUI 7.
-- [~] Statistiques de compte dans les paramètres : les trois compteurs sont calculés aléatoirement dans le frontend, sans données API réelles.
+- [x] Preferences utilisateur persistantes : heures productives, theme clair/sombre
+  et notifications.
+- [x] Chargement du theme sauvegarde au demarrage, avec normalisation des anciennes
+  valeurs `auto`.
+- [~] Responsive partiel : `Home`, `Parametres` et `Dashboard` ont ete adaptes et
+  testes ; `TacheForm.jsx` et les composants de categories utilisent encore
+  l'ancienne API Grid MUI.
+- [~] Statistiques de compte dans `Parametres.jsx` : valeurs de demonstration
+  calculees dans le frontend, sans donnees API reelles.
 
 ### Dashboard et statistiques
 
-- [x] Total, taux de complétion et répartition par priorité : endpoint `GET /api/taches/statistiques/`, avec les quatre priorités 1 a 4 y compris les zéros.
-- [x] Graphique de priorités : `GraphiquesPriorite.jsx` utilise Recharts et est intégré au dashboard.
+- [x] Endpoint `GET /api/taches/statistiques/` avec total, taux de completion et
+  repartition des priorites 1 a 4, zeros inclus.
+- [x] Graphique Recharts des priorites integre au dashboard.
 
-### Recommandations à règles
+### Recommandations
 
-- [~] `GET /api/taches/meilleur_moment/` : l'endpoint et son contrat `{heures_recommandees, message}` existent et sont testés ; aucune logique applicative n'enregistre automatiquement les `StatistiqueUtilisation` lors de la complétion d'une tâche, donc les données d'habitudes ne sont pas alimentées en usage normal.
+- [~] `GET /api/taches/meilleur_moment/` existe et respecte le contrat
+  `{heures_recommandees, message}`. Limite connue : les statistiques
+  d'utilisation ne sont pas alimentees automatiquement lors de la completion
+  normale d'une tache.
+- [x] `GET /api/taches/recommandation_ia/` appelle le service LLM quand c'est
+  possible et garantit le meme contrat JSON en cas de succes, d'erreur ou de
+  repli local.
+- [x] Cache persistant 24 h, quota quotidien par utilisateur, journalisation
+  pseudonymisee et purge probabiliste des anciens journaux. Details dans
+  `docs/llm-cache-quota-logging.md` et plan d'execution dans
+  `docs/superpowers/plans/2026-09-10-llm-cache-quota-logging.md`.
+- [x] Frontend `RecommandationsIA.jsx` avec etats chargement, succes, erreur et
+  action de nouvel essai.
 
-### Configuration de déploiement
+### Configuration et production
 
-- [~] Configuration de développement fonctionnelle : PostgreSQL, CORS local et URL Axios locale sont codés pour l'environnement local. `DEBUG=True`, une `SECRET_KEY` codée en dur et l'URL API `localhost` empêchent de qualifier cette configuration de prête pour la production.
+- [~] Configuration locale fonctionnelle avec PostgreSQL, CORS local et URL Axios
+  locale.
+- [~] Non pret production : `DEBUG=True`, `SECRET_KEY` codee en dur et URL API
+  locale doivent etre externalises ou securises avant deploiement.
 
-## 5. Pipeline de recommandations LLM
+## 6. Contrats a ne pas casser
 
-Le contrat de sortie, commun au LLM et au repli à règles, est toujours :
+Reponse de recommandation, quelle que soit la source :
 
 ```json
 {
@@ -100,39 +178,30 @@ Le contrat de sortie, commun au LLM et au repli à règles, est toujours :
 }
 ```
 
-### Configuration
+Routes API principales, toutes prefixees par `/api/` :
 
-- [x] `LLM_API_KEY` est lue côté Django avec `python-decouple` ; elle n'est pas exposée au frontend.
-- [x] Le SDK `anthropic` est présent dans `backend/requirements.txt`.
-- [~] Une clé réelle reste nécessaire dans l'environnement pour appeler Anthropic ; sans elle, l'API utilise le repli local.
+- `POST /auth/login/`, `POST /auth/logout/`, `GET /auth/user/`
+- `/taches/`, `/taches/{id}/`, `/taches/aujourd_hui/`, `/taches/cette_semaine/`
+- `/taches/statistiques/`, `/taches/meilleur_moment/`, `/taches/recommandation_ia/`
+- `/categories/`, `/categories/{id}/`
+- `/preferences/`, `/preferences/{id}/`
 
-### Service
+## 7. Verification attendue
 
-- [x] `api/llm_service.py` construit un prompt structuré, nettoie et tronque les données utilisateur, impose du JSON et valide la réponse.
-- [x] L'appel Anthropic possède un délai, deux tentatives pour les erreurs transitoires, un modèle par défaut et une limite de 256 tokens.
-- [x] Les erreurs techniques ou de format renvoient `None` et sont journalisées sans contenu de prompt ni de réponse.
+Pour un changement backend :
 
-### Endpoint
+```bash
+cd backend
+python manage.py test
+```
 
-- [x] `GET /api/taches/recommandation_ia/` récupère les tâches et préférences de l'utilisateur, appelle le service puis garantit le contrat JSON.
-- [x] En cas d'absence de clé, d'échec LLM ou de réponse invalide, l'endpoint utilise `meilleur_moment` comme repli.
+Pour un changement frontend :
 
-### Cache, quota et journalisation
+```bash
+cd frontend
+npm test -- --watchAll=false
+```
 
-- [x] Cache persistant en base, clé dérivée de l'utilisateur, des tâches et préférences, TTL de 24 heures ; invalidation par signaux à chaque modification de tâche ou préférence.
-- [x] Quota de dix appels externes Anthropic par utilisateur et par jour calendaire ; au-delà, dernière réponse en cache ou repli local.
-- [x] Journalisation en base de métadonnées pseudonymisées uniquement, avec purge probabiliste des entrées de plus de trente jours.
-
-### Frontend
-
-- [x] `RecommandationsIA.jsx` appelle l'API, affiche un skeleton de chargement, le résultat et une erreur avec possibilité de réessayer ; il est intégré à `Dashboard`.
-
-### Tests
-
-- [x] Tests backend pour le service, le parsing, le cache, le quota, l'endpoint et les replis.
-- [x] Tests frontend pour les états chargement, succès et erreur du composant de recommandations.
-
-### Documentation
-
-- [x] Le contrat du prompt et de la réponse est décrit dans `docs/llm-contract.md`.
-- [x] L'architecture cache/quota/journalisation est décrite dans `docs/llm-cache-quota-logging.md`.
+Pour un changement documentaire seul, relire le rendu Markdown et verifier que
+les chemins cites existent. Les tests applicatifs ne sont pas obligatoires si
+aucun comportement, dependance ou contrat n'a change.
