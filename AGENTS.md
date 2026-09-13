@@ -11,9 +11,9 @@ Elle combine un backend Django REST, un frontend React/MUI et un module de
 recommandations d'horaires avec appel Anthropic optionnel et repli local.
 
 Le projet est fonctionnel en developpement local, mais il n'est pas pret pour
-la production. Les principaux points non termines sont l'inscription utilisateur,
-la recuperation de mot de passe, les statistiques de compte reelles,
-l'alimentation automatique des habitudes et la configuration de deploiement.
+la production. Les principaux points non termines sont les statistiques de
+compte reelles, l'alimentation automatique des habitudes, la configuration SMTP
+de production et la configuration de deploiement.
 
 Stack actuelle :
 
@@ -24,7 +24,8 @@ Stack actuelle :
 ## 2. Carte rapide du code
 
 - `backend/backend/settings.py` : configuration Django, base de donnees, CORS, apps.
-- `backend/api/authentication.py` : login, logout et utilisateur courant.
+- `backend/api/auth_backends.py` : authentification par e-mail ou nom d'utilisateur.
+- `backend/api/authentication.py` : login, inscription, logout, utilisateur courant et reset de mot de passe.
 - `backend/api/models.py` : taches, categories, preferences, statistiques, cache et journaux LLM.
 - `backend/api/serializers.py` : contrats JSON exposes par l'API.
 - `backend/api/views.py` : viewsets REST, statistiques, recommandations a regles et IA.
@@ -33,7 +34,8 @@ Stack actuelle :
 - `backend/api/signals.py` : invalidation du cache de recommandation.
 - `frontend/src/services/api.js` : client Axios et base URL locale.
 - `frontend/src/context/AuthContext.jsx` : etat d'authentification React.
-- `frontend/src/pages/` : pages principales (`Home`, `Login`, `Parametres`).
+- `frontend/src/pages/` : pages principales (`Home`, `Login`, `Inscription`,
+  `MotDePasseOublie`, `ReinitialiserMotDePasse`, `Parametres`).
 - `frontend/src/components/Taches/` : liste, carte et formulaire de taches.
 - `frontend/src/components/Categories/` : CRUD des categories.
 - `frontend/src/components/Statistiques/` : dashboard et graphique de priorites.
@@ -41,6 +43,8 @@ Stack actuelle :
 - `docs/llm-contract.md` : contrat prompt/reponse des recommandations.
 - `docs/llm-cache-quota-logging.md` : architecture cache, quota et journalisation.
 - `docs/superpowers/plans/2026-09-10-llm-cache-quota-logging.md` : plan de mise en oeuvre detaille du controle cache/quota/journaux.
+- `docs/superpowers/specs/2026-09-10-authentification-complete-design.md` : conception de l'authentification complete.
+- `docs/superpowers/plans/2026-09-10-authentification-complete.md` : plan d'execution de l'authentification complete.
 
 ## 3. Commandes utiles
 
@@ -107,15 +111,19 @@ avec limite connue ; `[ ]` absent.
 
 ### Authentification
 
-- [x] Connexion, deconnexion et utilisateur courant par token.
-  Fichiers principaux : `backend/api/authentication.py`,
+- [x] Connexion par e-mail ou nom d'utilisateur, deconnexion et utilisateur
+  courant par token. Fichiers principaux : `backend/api/auth_backends.py`,
+  `backend/api/authentication.py`,
   `frontend/src/context/AuthContext.jsx`, `frontend/src/pages/Login.jsx`.
-- [ ] Inscription utilisateur sur la branche courante `main`. Aucun endpoint
-  `POST /api/auth/register/` ni ecran d'inscription n'existe dans le code a la
-  racine ; le bouton d'inscription de `Login.jsx` ne lance pas encore de flux
-  reel.
-- [ ] Mot de passe oublie et reinitialisation. Aucun endpoint ni ecran dedie
-  n'existe dans le code a la racine.
+- [x] Inscription utilisateur par e-mail : `POST /api/auth/register/`, username
+  interne genere automatiquement, validation Django du mot de passe,
+  confirmation de mot de passe, token retourne et session ouverte cote frontend.
+- [x] Limitation des tentatives d'authentification : quotas DRF pour inscription,
+  login, demande de reset et confirmation de reset ; le frontend remonte les
+  erreurs `429` via le champ `detail`.
+- [~] Mot de passe oublie et reinitialisation : endpoints et ecrans implementes,
+  lien avec token Django, confirmation de mot de passe et tests presents. En
+  production, la configuration SMTP reelle reste a fournir par environnement.
 
 ### Taches et categories
 
@@ -164,8 +172,9 @@ avec limite connue ; `[ ]` absent.
 
 - [~] Configuration locale fonctionnelle avec PostgreSQL, CORS local et URL Axios
   locale.
-- [~] Non pret production : `DEBUG=True`, `SECRET_KEY` codee en dur et URL API
-  locale doivent etre externalises ou securises avant deploiement.
+- [~] Non pret production : `DEBUG=True`, `SECRET_KEY` codee en dur, URL API
+  locale et configuration SMTP doivent etre externalises ou securises avant
+  deploiement.
 
 ## 6. Contrats a ne pas casser
 
@@ -180,7 +189,8 @@ Reponse de recommandation, quelle que soit la source :
 
 Routes API principales, toutes prefixees par `/api/` :
 
-- `POST /auth/login/`, `POST /auth/logout/`, `GET /auth/user/`
+- `POST /auth/login/`, `POST /auth/register/`, `POST /auth/logout/`, `GET /auth/user/`
+- `POST /auth/mot-de-passe-oublie/`, `POST /auth/reinitialiser-mot-de-passe/`
 - `/taches/`, `/taches/{id}/`, `/taches/aujourd_hui/`, `/taches/cette_semaine/`
 - `/taches/statistiques/`, `/taches/meilleur_moment/`, `/taches/recommandation_ia/`
 - `/categories/`, `/categories/{id}/`
