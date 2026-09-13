@@ -34,7 +34,10 @@ import Dashboard from './components/Statistiques/Dashboard';
 import TacheListe from './components/Taches/TacheListe';
 import CategorieListe from './components/Categories/CategorieListe';
 import Parametres from './pages/Parametres';
+import Inscription from './pages/Inscription';
 import Login from './pages/Login';
+import MotDePasseOublie from './pages/MotDePasseOublie';
+import ReinitialiserMotDePasse from './pages/ReinitialiserMotDePasse';
 import Home from './pages/Home';
 import { preferencesAPI } from './services/api';
 
@@ -229,6 +232,9 @@ function AppContent({ onThemeChange }) {
       <Routes>
         {/* Routes publiques */}
         <Route path="/login" element={<Login />} />
+        <Route path="/inscription" element={<Inscription />} />
+        <Route path="/mot-de-passe-oublie" element={<MotDePasseOublie />} />
+        <Route path="/reinitialiser-mot-de-passe/:uid/:token" element={<ReinitialiserMotDePasse />} />
         
         {/* Routes protégées avec layout */}
         <Route

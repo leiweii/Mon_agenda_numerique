@@ -20,9 +20,10 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { extraireMessageErreur } from '../services/errors';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -37,10 +38,10 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(identifier, password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Nom d\'utilisateur ou mot de passe incorrect');
+      setError(extraireMessageErreur(err, 'Identifiants invalides.'));
     } finally {
       setLoading(false);
     }
@@ -121,11 +122,11 @@ const Login = () => {
 
             <TextField
               fullWidth
-              label="Nom d'utilisateur"
+              label="E-mail ou nom d'utilisateur"
               variant="outlined"
               margin="normal"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               InputProps={{
                 startAdornment: (
@@ -187,12 +188,19 @@ const Login = () => {
             </Button>
           </form>
 
+          <Box mt={2} textAlign="right">
+            <Button size="small" onClick={() => navigate('/mot-de-passe-oublie')}>
+              Mot de passe oublié ?
+            </Button>
+          </Box>
+
           {/* Footer */}
           <Box mt={4} textAlign="center">
             <Typography variant="body2" color="text.secondary">
               Pas encore de compte ?{' '}
               <Button
                 size="small"
+                onClick={() => navigate('/inscription')}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 'bold',

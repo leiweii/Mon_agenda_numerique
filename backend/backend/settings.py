@@ -81,6 +81,14 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 from decouple import config  
 
 LLM_API_KEY = config('LLM_API_KEY', default='')
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = config('EMAIL_HOST', default='')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@monagenda.local')
 
 DATABASES = {
     "default": {
@@ -110,6 +118,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+]
+
+AUTHENTICATION_BACKENDS = [
+    'api.auth_backends.EmailOuUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 
@@ -144,5 +157,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'registration': '5/hour',
+        'login': '5/15min',
+        'password_reset_request': '5/hour',
+        'password_reset_email': '3/hour',
+        'password_reset': '5/hour',
+    },
 }
 

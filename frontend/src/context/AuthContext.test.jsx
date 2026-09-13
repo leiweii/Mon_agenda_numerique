@@ -7,6 +7,7 @@ jest.mock('../services/api', () => ({
   authAPI: {
     getCurrentUser: jest.fn(),
     login: jest.fn(),
+    register: jest.fn(),
     logout: jest.fn(),
   },
 }));
@@ -18,12 +19,22 @@ const USER = {
 };
 
 const AuthState = () => {
-  const { loading, user, logout } = useAuth();
+  const { loading, user, logout, register } = useAuth();
 
   return (
     <>
       <span>{loading ? 'loading' : user?.username || 'guest'}</span>
       <button type="button" onClick={logout}>logout</button>
+      <button
+        type="button"
+        onClick={() => register({
+          username: 'alice',
+          email: 'alice@example.com',
+          password: 'Une phrase de passe robuste 2026!',
+        })}
+      >
+        register
+      </button>
     </>
   );
 };
@@ -57,6 +68,18 @@ test('clears an invalid stored token when loading the current user fails', async
 
   expect(await screen.findByText('guest')).toBeInTheDocument();
   expect(localStorage.getItem('token')).toBeNull();
+});
+
+test('stores the token and user returned after registration', async () => {
+  authAPI.register.mockResolvedValue({ data: { token: 'new-token', user: USER } });
+  authAPI.getCurrentUser.mockResolvedValue({ data: USER });
+
+  renderAuthState();
+  await screen.findByText('guest');
+  fireEvent.click(screen.getByRole('button', { name: 'register' }));
+
+  expect(await screen.findByText('alice')).toBeInTheDocument();
+  expect(localStorage.getItem('token')).toBe('new-token');
 });
 
 test('revokes the remote token before clearing the local session', async () => {
