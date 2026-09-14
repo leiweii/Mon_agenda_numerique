@@ -1,6 +1,24 @@
 from rest_framework import serializers
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
+from api.models import ActionCandidature, Candidature
 from django.contrib.auth.models import User
+from urllib.parse import urlsplit
+
+
+class ImportCandidatureSerializer(serializers.Serializer):
+    url = serializers.URLField(max_length=1000)
+
+    def validate_url(self, value):
+        parts = urlsplit(value)
+        try:
+            port = parts.port
+        except ValueError:
+            raise serializers.ValidationError('Le port de cette URL est invalide.')
+        if port == 0:
+            raise serializers.ValidationError('Le port de cette URL est invalide.')
+        if parts.scheme not in {'http', 'https'} or parts.username or parts.password:
+            raise serializers.ValidationError('Une URL HTTP(S) sans identifiants est requise.')
+        return value
 
 class CategorieSerializer(serializers.ModelSerializer):
     class Meta:
@@ -42,3 +60,17 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
+
+
+class CandidatureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Candidature
+        fields = '__all__'
+        read_only_fields = ['utilisateur', 'date_ajout', 'date_modification']
+
+
+class ActionCandidatureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActionCandidature
+        fields = '__all__'
+        read_only_fields = ['candidature', 'date_creation']

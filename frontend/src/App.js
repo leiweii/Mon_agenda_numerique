@@ -26,6 +26,7 @@ import {
   Category,
   Settings,
   Home as HomeIcon,
+  WorkOutline,
 } from '@mui/icons-material';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -39,6 +40,8 @@ import Login from './pages/Login';
 import MotDePasseOublie from './pages/MotDePasseOublie';
 import ReinitialiserMotDePasse from './pages/ReinitialiserMotDePasse';
 import Home from './pages/Home';
+import Candidatures from './pages/Candidatures';
+import CandidatureDetail from './pages/CandidatureDetail';
 import { preferencesAPI } from './services/api';
 
 const DRAWER_WIDTH = 240;
@@ -107,6 +110,7 @@ const menuItems = [
   { text: 'Accueil', icon: <HomeIcon />, path: '/' },
   { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Mes tâches', icon: <Assignment />, path: '/taches' },
+  { text: 'Candidatures', icon: <WorkOutline />, path: '/candidatures' },
   { text: 'Catégories', icon: <Category />, path: '/categories' },
   { text: 'Paramètres', icon: <Settings />, path: '/parametres' },
 ];
@@ -291,6 +295,12 @@ function AppContent({ onThemeChange }) {
             </ProtectedRoute>
           }
         />
+        <Route path="/candidatures" element={
+          <ProtectedRoute><MainLayout><Candidatures /></MainLayout></ProtectedRoute>
+        } />
+        <Route path="/candidatures/:id" element={
+          <ProtectedRoute><MainLayout><CandidatureDetail /></MainLayout></ProtectedRoute>
+        } />
       </Routes>
     </Router>
   );

@@ -139,10 +139,12 @@ def journaliser_appel_llm(
     duration_ms=None,
     error_type='',
     now=None,
+    usage=JournalAppelLLM.Usage.RECOMMANDATION,
 ):
     """Cree un journal ne contenant que des metadonnees hachees de l'appel."""
     journal = JournalAppelLLM.objects.create(
         user_hash=hacher_utilisateur(utilisateur),
+        usage=usage,
         prompt_hash=hacher_prompt(prompt),
         prompt_length=len(prompt),
         duration_ms=duration_ms,
@@ -156,19 +158,23 @@ def journaliser_appel_llm(
     return journal
 
 
-def quota_disponible(utilisateur, now=None):
+def quota_disponible(utilisateur, now=None, *, usage=JournalAppelLLM.Usage.RECOMMANDATION):
     """Indique si l'utilisateur peut encore reserver un appel LLM aujourd'hui."""
     now = now or timezone.now()
     start, end = _bornes_jour_local(now)
+    if usage not in JournalAppelLLM.Usage.values:
+        raise ValueError('Usage LLM inconnu')
+    limit = settings.CANDIDATURE_LLM_DAILY_LIMIT if usage == JournalAppelLLM.Usage.CANDIDATURE else DAILY_LLM_LIMIT
     return JournalAppelLLM.objects.filter(
         user_hash=hacher_utilisateur(utilisateur),
+        usage=usage,
         created_at__gte=start,
         created_at__lt=end,
         status__in=EXTERNAL_CALL_STATUSES,
-    ).count() < DAILY_LLM_LIMIT
+    ).count() < limit
 
 
-def reserver_appel_llm(utilisateur, prompt, now=None):
+def reserver_appel_llm(utilisateur, prompt, now=None, *, usage=JournalAppelLLM.Usage.RECOMMANDATION):
     """Reserve atomiquement un appel externe, ou retourne ``None`` si le quota est atteint.
 
     La reservation est journalisee comme une erreur temporaire puis doit etre finalisee
@@ -178,7 +184,7 @@ def reserver_appel_llm(utilisateur, prompt, now=None):
     user_model = get_user_model()
     with transaction.atomic():
         locked_user = user_model.objects.select_for_update().get(pk=utilisateur.pk)
-        if not quota_disponible(locked_user, now=now):
+        if not quota_disponible(locked_user, now=now, usage=usage):
             return None
         return journaliser_appel_llm(
             locked_user,
@@ -187,6 +193,7 @@ def reserver_appel_llm(utilisateur, prompt, now=None):
             cache_hit=False,
             error_type='reservation',
             now=now,
+            usage=usage,
         )
 
 

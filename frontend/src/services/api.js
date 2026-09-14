@@ -63,4 +63,23 @@ export const authAPI = {
   getCurrentUser: () => api.get('auth/user/'),
 };
 
+export const candidaturesAPI = {
+  getAll: (params) => api.get('candidatures/', { params }),
+  exportCsv: (params) => api.get('candidatures/export_csv/', { params, responseType: 'blob' }),
+  getById: (id) => api.get(`candidatures/${id}/`),
+  importUrl: (url) => api.post('candidatures/import_url/', { url }),
+  create: (data) => api.post('candidatures/', data),
+  update: (id, data) => api.put(`candidatures/${id}/`, data),
+  patch: (id, data) => api.patch(`candidatures/${id}/`, data),
+  delete: (id) => api.delete(`candidatures/${id}/`),
+  archive: (id) => api.patch(`candidatures/${id}/archiver/`),
+};
+
+export const candidatureActionsAPI = {
+  getAll: (candidatureId) => api.get(`candidatures/${candidatureId}/actions/`),
+  create: (candidatureId, data) => api.post(`candidatures/${candidatureId}/actions/`, data),
+  update: (candidatureId, actionId, data) => api.put(`candidatures/${candidatureId}/actions/${actionId}/`, data),
+  delete: (candidatureId, actionId) => api.delete(`candidatures/${candidatureId}/actions/${actionId}/`),
+};
+
 export default api;

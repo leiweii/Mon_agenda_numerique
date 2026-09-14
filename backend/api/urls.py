@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CategorieViewSet, PreferenceViewSet, RecommandationIAView, TacheViewSet
+from .views import CandidatureViewSet, CategorieViewSet, PreferenceViewSet, RecommandationIAView, TacheViewSet
 from .authentication import (
     current_user,
     login_view,
@@ -12,6 +12,7 @@ from .authentication import (
 
 router = DefaultRouter()
 router.register(r'taches', TacheViewSet, basename='tache')
+router.register(r'candidatures', CandidatureViewSet, basename='candidature')
 router.register(r'categories', CategorieViewSet, basename='categorie')
 router.register(r'preferences', PreferenceViewSet, basename='preference')
 

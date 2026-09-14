@@ -1,60 +1,64 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Grid,
-  Paper,
-  Typography,
+  CheckCircle,
+  Schedule,
+  TrendingUp,
+  Warning,
+} from "@mui/icons-material";
+import {
+  Alert,
   Box,
   Card,
   CardContent,
-  LinearProgress,
   Chip,
-  Alert,
-} from '@mui/material';
-import {
-  TrendingUp,
-  CheckCircle,
-  Schedule,
-  Warning,
-} from '@mui/icons-material';
-import GraphiquesPriorite from './GraphiquesPriorite';
-import RecommandationsIA from '../RecommandationsIA';
-import { tachesAPI } from '../../services/api';
+  Grid,
+  LinearProgress,
+  Paper,
+  Typography,
+} from "@mui/material";
+import { useEffect, useState } from "react";
+import { tachesAPI } from "../../services/api";
+import RecommandationsIA from "../RecommandationsIA";
+import GraphiquesPriorite from "./GraphiquesPriorite";
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [tachesAujourdhui, setTachesAujourdhui] = useState([]);
   const [tachesSemaine, setTachesSemaine] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     chargerStatistiques();
   }, []);
 
   const chargerStatistiques = async () => {
-    setError('');
+    setError("");
     try {
       const [statsRes, jourRes, semaineRes] = await Promise.all([
         tachesAPI.getStatistiques(),
         tachesAPI.getAujourdhui(),
         tachesAPI.getCetteSemaine(),
       ]);
-      
+
       setStats(statsRes.data);
       setTachesAujourdhui(jourRes.data);
       setTachesSemaine(semaineRes.data);
     } catch (error) {
-      console.error('Erreur chargement stats:', error);
-      setError('Impossible de charger les statistiques.');
+      console.error("Erreur chargement stats:", error);
+      setError("Impossible de charger les statistiques.");
     } finally {
       setLoading(false);
     }
   };
 
   const StatCard = ({ title, value, icon, color, subtitle }) => (
-    <Card sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
+    <Card sx={{ height: "100%", position: "relative", overflow: "visible" }}>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="flex-start"
+        >
           <Box>
             <Typography color="text.secondary" variant="subtitle2" gutterBottom>
               {title}
@@ -63,7 +67,11 @@ const Dashboard = () => {
               {value}
             </Typography>
             {subtitle && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1 }}
+              >
                 {subtitle}
               </Typography>
             )}
@@ -73,9 +81,9 @@ const Dashboard = () => {
               bgcolor: `${color}.lighter`,
               borderRadius: 2,
               p: 1.5,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             {icon}
@@ -87,7 +95,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <Box sx={{ width: '100%', mt: 2 }}>
+      <Box sx={{ width: "100%", mt: 2 }}>
         <LinearProgress />
       </Box>
     );
@@ -115,35 +123,35 @@ const Dashboard = () => {
           <StatCard
             title="Total de tâches"
             value={stats?.total || 0}
-            icon={<Schedule sx={{ fontSize: 40, color: 'primary.main' }} />}
+            icon={<Schedule sx={{ fontSize: 40, color: "primary.main" }} />}
             color="primary"
           />
         </Grid>
-        
+
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Terminées"
             value={stats?.completees || 0}
-            icon={<CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />}
+            icon={<CheckCircle sx={{ fontSize: 40, color: "success.main" }} />}
             color="success"
             subtitle={`${stats?.taux_completion?.toFixed(0)}% de réussite`}
           />
         </Grid>
-        
+
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="En cours"
             value={stats?.en_cours || 0}
-            icon={<TrendingUp sx={{ fontSize: 40, color: 'warning.main' }} />}
+            icon={<TrendingUp sx={{ fontSize: 40, color: "warning.main" }} />}
             color="warning"
           />
         </Grid>
-        
+
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Aujourd'hui"
             value={tachesAujourdhui.length}
-            icon={<Warning sx={{ fontSize: 40, color: 'error.main' }} />}
+            icon={<Warning sx={{ fontSize: 40, color: "error.main" }} />}
             color="error"
           />
         </Grid>
@@ -156,7 +164,7 @@ const Dashboard = () => {
       <Grid container spacing={3}>
         {/* Graphique des priorités */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: "100%" }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Répartition par priorité
             </Typography>
@@ -166,23 +174,26 @@ const Dashboard = () => {
 
         {/* Progression hebdomadaire */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: "100%" }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Progression de la semaine
             </Typography>
-            
+
             <Box mt={3}>
               <Box display="flex" justifyContent="space-between" mb={1}>
                 <Typography variant="body2">Tâches complétées</Typography>
                 <Typography variant="body2" fontWeight="bold">
-                  {tachesSemaine.filter(t => t.completee).length} / {tachesSemaine.length}
+                  {tachesSemaine.filter((t) => t.completee).length} /{" "}
+                  {tachesSemaine.length}
                 </Typography>
               </Box>
-              <LinearProgress 
-                variant="determinate" 
+              <LinearProgress
+                variant="determinate"
                 value={
-                  tachesSemaine.length > 0 
-                    ? (tachesSemaine.filter(t => t.completee).length / tachesSemaine.length) * 100 
+                  tachesSemaine.length > 0
+                    ? (tachesSemaine.filter((t) => t.completee).length /
+                        tachesSemaine.length) *
+                      100
                     : 0
                 }
                 sx={{ height: 10, borderRadius: 5 }}
@@ -198,13 +209,16 @@ const Dashboard = () => {
                   <Chip
                     key={tache.id}
                     label={`${tache.emoji} ${tache.titre}`}
-                    color={tache.completee ? 'success' : 'default'}
-                    variant={tache.completee ? 'filled' : 'outlined'}
+                    color={tache.completee ? "success" : "default"}
+                    variant={tache.completee ? "filled" : "outlined"}
                     size="small"
                   />
                 ))}
                 {tachesSemaine.length > 5 && (
-                  <Chip label={`+${tachesSemaine.length - 5} autres`} size="small" />
+                  <Chip
+                    label={`+${tachesSemaine.length - 5} autres`}
+                    size="small"
+                  />
                 )}
               </Box>
             </Box>
@@ -217,7 +231,7 @@ const Dashboard = () => {
             <Typography variant="h6" gutterBottom fontWeight="bold">
               🔥 Tâches prioritaires aujourd'hui
             </Typography>
-            
+
             {tachesAujourdhui.length === 0 ? (
               <Box textAlign="center" py={4}>
                 <Typography color="text.secondary">
@@ -227,7 +241,7 @@ const Dashboard = () => {
             ) : (
               <Grid container spacing={2} mt={1}>
                 {tachesAujourdhui
-                  .filter(t => !t.completee)
+                  .filter((t) => !t.completee)
                   .sort((a, b) => b.priorite - a.priorite)
                   .slice(0, 3)
                   .map((tache) => (
@@ -239,13 +253,20 @@ const Dashboard = () => {
                           </Typography>
                           <Chip
                             label={
-                              tache.priorite === 4 ? 'Urgente' :
-                              tache.priorite === 3 ? 'Haute' :
-                              tache.priorite === 2 ? 'Moyenne' : 'Basse'
+                              tache.priorite === 4
+                                ? "Urgente"
+                                : tache.priorite === 3
+                                  ? "Haute"
+                                  : tache.priorite === 2
+                                    ? "Moyenne"
+                                    : "Basse"
                             }
                             color={
-                              tache.priorite === 4 ? 'error' :
-                              tache.priorite === 3 ? 'warning' : 'info'
+                              tache.priorite === 4
+                                ? "error"
+                                : tache.priorite === 3
+                                  ? "warning"
+                                  : "info"
                             }
                             size="small"
                             sx={{ mt: 1 }}

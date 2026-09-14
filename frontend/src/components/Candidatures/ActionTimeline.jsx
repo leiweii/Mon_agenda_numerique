@@ -1,0 +1,48 @@
+import React from 'react';
+import { Box, Button, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Add, DeleteOutline, EditOutlined, History } from '@mui/icons-material';
+import { format, isValid, parseISO } from 'date-fns';
+import { TYPES_ACTION } from './options';
+
+function formatDate(value) {
+  const parsed = value ? parseISO(value) : null;
+  return parsed && isValid(parsed) ? format(parsed, 'dd/MM/yyyy HH:mm') : '';
+}
+
+export default function ActionTimeline({ actions, onAdd, onEdit, onDelete, disabled = false }) {
+  const ordered = [...actions].sort((left, right) => Date.parse(right.date_action) - Date.parse(left.date_action));
+
+  return (
+    <Box component="section" aria-labelledby="actions-title">
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <History color="action" />
+          <Typography id="actions-title" component="h2" variant="h6">Historique des actions</Typography>
+        </Stack>
+        <Button startIcon={<Add />} variant="outlined" onClick={onAdd} disabled={disabled}>Ajouter une action</Button>
+      </Stack>
+      {ordered.length === 0 && <Typography color="text.secondary">Aucune action enregistree.</Typography>}
+      <Stack spacing={0} sx={{ borderLeft: 2, borderColor: 'divider', ml: 1.5 }}>
+        {ordered.map(item => {
+          const label = TYPES_ACTION[item.type_action] || item.type_action;
+          return (
+            <Box key={item.id} sx={{ position: 'relative', pl: 3, py: 1.5 }}>
+              <Box sx={{ position: 'absolute', width: 12, height: 12, borderRadius: '50%', bgcolor: 'primary.main', left: -7, top: 24 }} />
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography component="h3" variant="subtitle2">{label}</Typography>
+                  <Typography variant="caption" color="text.secondary">{formatDate(item.date_action)}</Typography>
+                  {item.commentaire && <Typography sx={{ mt: 0.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.commentaire}</Typography>}
+                </Box>
+                <Stack direction="row">
+                  <Tooltip title="Modifier"><span><IconButton size="small" disabled={disabled} aria-label={`Modifier ${label}`} onClick={() => onEdit(item)}><EditOutlined fontSize="small" /></IconButton></span></Tooltip>
+                  <Tooltip title="Supprimer"><span><IconButton size="small" disabled={disabled} aria-label={`Supprimer ${label}`} onClick={() => onDelete(item)}><DeleteOutline fontSize="small" /></IconButton></span></Tooltip>
+                </Stack>
+              </Stack>
+            </Box>
+          );
+        })}
+      </Stack>
+    </Box>
+  );
+}

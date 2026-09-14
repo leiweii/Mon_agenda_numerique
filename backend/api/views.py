@@ -1,15 +1,23 @@
+import csv
+import logging
+import time
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
-import logging
-import time
+from datetime import date, timedelta
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
-from .serializers import TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
+from api.models import Candidature
+from .candidature_scraper import formulaire_vide, normaliser_url, scraper_candidature
+from .candidature_llm import extraire_candidature_llm
+from .serializers import ImportCandidatureSerializer
+from .serializers import ActionCandidatureSerializer, CandidatureSerializer, TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
 from .llm_service import appeler_llm, construire_prompt, parser_reponse
 from .llm_performance import (
     construire_cle_cache,
@@ -24,6 +32,16 @@ from .llm_performance import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _csv_cell(value):
+    if value is None:
+        return ''
+    if hasattr(value, 'isoformat'):
+        value = value.isoformat()
+    else:
+        value = str(value)
+    return f"'{value}" if value.startswith(('=', '+', '-', '@', '\t', '\r')) else value
 
 
 def _recommandation_meilleur_moment(utilisateur):
@@ -99,6 +117,160 @@ class TacheViewSet(viewsets.ModelViewSet):
     def meilleur_moment(self, request):
         """Algorithme de recommandation du meilleur moment de travail"""
         return Response(_recommandation_meilleur_moment(request.user))
+
+
+class CandidatureViewSet(viewsets.ModelViewSet):
+    serializer_class = CandidatureSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Candidature.objects.filter(utilisateur=self.request.user)
+        if self.action not in {'list', 'export_csv'}:
+            return queryset
+        params = self.request.query_params
+
+        if params.get('archive', '').lower() != 'true':
+            queryset = queryset.filter(archive=False)
+
+        choice_filters = {
+            'statut': Candidature.Statut.values,
+            'type_poste': Candidature.TypePoste.values,
+            'source_canal': Candidature.SourceCanal.values,
+        }
+        for field, allowed_values in choice_filters.items():
+            values = [value for value in params.getlist(field) if value in allowed_values]
+            if values:
+                queryset = queryset.filter(**{f'{field}__in': values})
+
+        tags = [tag.strip() for tag in params.getlist('tags') if tag.strip()]
+        if tags:
+            queryset = queryset.filter(tags__contains=tags)
+
+        if params.get('favori', '').lower() == 'true':
+            queryset = queryset.filter(favori=True)
+
+        search = params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(Q(titre__icontains=search) | Q(entreprise__icontains=search))
+
+        for param, lookup in (
+            ('date_ajout_min', 'date_ajout__date__gte'),
+            ('date_ajout_max', 'date_ajout__date__lte'),
+        ):
+            value = params.get(param, '').strip()
+            if value:
+                try:
+                    date.fromisoformat(value)
+                except ValueError:
+                    continue
+                queryset = queryset.filter(**{lookup: value})
+
+        today = timezone.localdate()
+        if params.get('date_limite') == '7j':
+            queryset = queryset.filter(date_limite__range=(today, today + timedelta(days=7)))
+        if params.get('relance_due', '').lower() == 'true':
+            queryset = queryset.filter(date_relance__lte=today)
+
+        ordering = params.get('ordering', '-date_ajout')
+        allowed_orderings = {
+            'date_ajout', '-date_ajout', 'date_limite', '-date_limite',
+            'date_relance', '-date_relance', 'statut', '-statut',
+        }
+        if ordering not in allowed_orderings:
+            ordering = '-date_ajout'
+        return queryset.order_by(ordering, '-id')
+
+    def perform_create(self, serializer):
+        serializer.save(utilisateur=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def export_csv(self, request):
+        columns = [
+            'titre', 'entreprise', 'type_poste', 'statut', 'source_canal',
+            'tags', 'favori', 'date_limite', 'date_relance', 'date_ajout', 'url',
+        ]
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="candidatures.csv"'
+        response.write('\ufeff')
+        writer = csv.writer(response)
+        writer.writerow(columns)
+
+        for candidature in self.get_queryset().iterator():
+            writer.writerow(_csv_cell(value) for value in [
+                candidature.titre,
+                candidature.entreprise,
+                candidature.type_poste,
+                candidature.statut,
+                candidature.source_canal,
+                ';'.join(candidature.tags),
+                candidature.favori,
+                candidature.date_limite,
+                candidature.date_relance,
+                candidature.date_ajout,
+                candidature.url,
+            ])
+        return response
+
+    @action(detail=True, methods=['patch'])
+    def archiver(self, request, pk=None):
+        candidature = self.get_object()
+        candidature.archive = True
+        candidature.save(update_fields=['archive', 'date_modification'])
+        return Response(self.get_serializer(candidature).data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='actions')
+    def actions(self, request, pk=None):
+        candidature = self.get_object()
+        if request.method == 'GET':
+            serializer = ActionCandidatureSerializer(candidature.actions.all(), many=True)
+            return Response(serializer.data)
+
+        serializer = ActionCandidatureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(candidature=candidature)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get', 'put', 'patch', 'delete'],
+        url_path=r'actions/(?P<action_id>[^/.]+)',
+    )
+    def action_item(self, request, pk=None, action_id=None):
+        candidature = self.get_object()
+        candidature_action = get_object_or_404(candidature.actions.all(), pk=action_id)
+        if request.method == 'GET':
+            return Response(ActionCandidatureSerializer(candidature_action).data)
+        if request.method == 'DELETE':
+            candidature_action.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = ActionCandidatureSerializer(
+            candidature_action,
+            data=request.data,
+            partial=request.method == 'PATCH',
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def import_url(self, request):
+        serializer = ImportCandidatureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        url = normaliser_url(serializer.validated_data['url'])
+        # Existing CRUD records may still contain tracking parameters.
+        for candidature_id, existing_url in self.get_queryset().values_list('id', 'url').iterator():
+            try:
+                normalized_existing_url = normaliser_url(existing_url)
+            except ValueError:
+                continue
+            if normalized_existing_url == url:
+                return Response({'duplicate': True, 'candidature_id': candidature_id})
+        contexte = {}
+        result = scraper_candidature(url, contexte=contexte)
+        if result is None:
+            result = extraire_candidature_llm(request.user, contexte.get('html', ''))
+        return Response({'url': url, **(result or formulaire_vide())})
 
 
 class RecommandationIAView(APIView):

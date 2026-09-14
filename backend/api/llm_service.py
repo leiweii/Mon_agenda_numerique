@@ -81,7 +81,7 @@ def _erreur_transitoire(erreur):
     )
 
 
-def appeler_llm(prompt):
+def appeler_llm(prompt, *, max_tokens=MAX_TOKENS):
     cle_api = settings.LLM_API_KEY
     if not cle_api:
         logger.warning('Appel LLM ignore: cle API absente')
@@ -97,7 +97,7 @@ def appeler_llm(prompt):
         try:
             reponse = client.messages.create(
                 model=MODELE_PAR_DEFAUT,
-                max_tokens=MAX_TOKENS,
+                max_tokens=max_tokens,
                 messages=[{'role': 'user', 'content': prompt}],
             )
             texte = ''.join(

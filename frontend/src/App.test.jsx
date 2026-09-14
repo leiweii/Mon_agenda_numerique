@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 import { preferencesAPI } from './services/api';
 
@@ -29,6 +29,8 @@ jest.mock('./components/Categories/CategorieListe', () => () => <div />);
 jest.mock('./pages/Parametres', () => () => <div />);
 jest.mock('./pages/Login', () => () => <div />);
 jest.mock('./pages/Home', () => () => <div />);
+jest.mock('./pages/Candidatures', () => () => <div />);
+jest.mock('./pages/CandidatureDetail', () => () => <div />);
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-theme');
@@ -43,4 +45,10 @@ test('loads the saved dark theme when the authenticated app starts', async () =>
     () => expect(document.documentElement).toHaveAttribute('data-theme', 'sombre'),
     { timeout: 5000 },
   );
+});
+
+test('shows Candidatures in the main navigation', () => {
+  preferencesAPI.get.mockResolvedValue({ data: [] });
+  render(<App />);
+  expect(screen.getAllByText('Candidatures').length).toBeGreaterThan(0);
 });

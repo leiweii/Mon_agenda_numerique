@@ -26,9 +26,13 @@ Stack actuelle :
 - `backend/backend/settings.py` : configuration Django, base de donnees, CORS, apps.
 - `backend/api/auth_backends.py` : authentification par e-mail ou nom d'utilisateur.
 - `backend/api/authentication.py` : login, inscription, logout, utilisateur courant et reset de mot de passe.
-- `backend/api/models.py` : taches, categories, preferences, statistiques, cache et journaux LLM.
+- `backend/api/models.py` : taches, categories, candidatures, actions, preferences, statistiques, cache et journaux LLM.
 - `backend/api/serializers.py` : contrats JSON exposes par l'API.
 - `backend/api/views.py` : viewsets REST, statistiques, recommandations a regles et IA.
+- `backend/api/candidature_scraper.py` : normalisation d'URL, telechargement
+  HTTP securise et extraction HTML des offres d'emploi.
+- `backend/api/candidature_llm.py` : repli Anthropic valide pour les imports
+  d'offres que le scraper ne peut pas extraire.
 - `backend/api/llm_service.py` : prompt, appel Anthropic, parsing et validation de reponse.
 - `backend/api/llm_performance.py` : cache, quota, journalisation et purge LLM.
 - `backend/api/signals.py` : invalidation du cache de recommandation.
@@ -39,12 +43,17 @@ Stack actuelle :
 - `frontend/src/components/Taches/` : liste, carte et formulaire de taches.
 - `frontend/src/components/Categories/` : CRUD des categories.
 - `frontend/src/components/Statistiques/` : dashboard et graphique de priorites.
+- `frontend/src/components/Candidatures/` : formulaire, cartes, filtres,
+  timeline d'actions et vue Kanban.
+- `frontend/src/pages/Candidatures.jsx` et `CandidatureDetail.jsx` : liste,
+  import, export et suivi detaille des candidatures.
 - `frontend/src/components/RecommandationsIA.jsx` : carte de recommandation IA.
 - `docs/llm-contract.md` : contrat prompt/reponse des recommandations.
 - `docs/llm-cache-quota-logging.md` : architecture cache, quota et journalisation.
 - `docs/superpowers/plans/2026-09-10-llm-cache-quota-logging.md` : plan de mise en oeuvre detaille du controle cache/quota/journaux.
 - `docs/superpowers/specs/2026-09-10-authentification-complete-design.md` : conception de l'authentification complete.
 - `docs/superpowers/plans/2026-09-10-authentification-complete.md` : plan d'execution de l'authentification complete.
+- `docs/superpowers/plans/2026-09-13-suivi-candidatures.md` : conception et decoupage en lots du module de suivi des candidatures.
 
 ## 3. Commandes utiles
 
@@ -134,6 +143,93 @@ avec limite connue ; `[ ]` absent.
 - [x] Suppression d'une categorie avec conservation des taches associees via
   categorie nulle.
 
+### Candidatures
+
+- [x] Modele `Candidature` et migration initiale avec URL, titre,
+  entreprise, description, type de poste, statut, source d'extraction,
+  source du canal, tags Postgres, favori, archivage, CV utilise, dates limite
+  et de relance, notes et contrainte unique `(utilisateur, url)`. Le lot 6
+  ajoute `lieu` et le mode de travail facultatif (`sur_site`, `hybride`,
+  `teletravail`).
+- [x] API CRUD standard `/api/candidatures/` scopee par utilisateur, avec
+  serializer DRF et tests backend de creation, valeurs par defaut et isolation
+  par utilisateur.
+- [x] Lot 2 : `POST /api/candidatures/import_url/` normalise l'URL (retrait
+  du tracking et du fragment), detecte les doublons de l'utilisateur avant
+  tout appel reseau et retourne `{duplicate: true, candidature_id}`.
+  Sinon, `backend/api/candidature_scraper.py` extrait le titre et la
+  description (Open Graph, puis HTML nettoye), sans sauvegarde automatique.
+  Si le scraping est insuffisant, passage au repli LLM du lot 3.
+- [x] Tests du scraping, criteres d'echec, doublons, isolation, validation
+  d'URL et absence de sauvegarde. Telechargement HTTP(S) limite a 1 Mo,
+  timeout socket de 6 s, adresses non publiques bloquees et connexion sur
+  l'IP validee avec verification TLS du domaine. Les redirections ne sont
+  pas suivies et JavaScript n'est pas execute.
+- [x] Lot 3 : `backend/api/candidature_llm.py` reutilise l'appel Anthropic
+  existant apres echec du scraping, avec le HTML deja telecharge (20 000
+  caracteres maximum), traite comme donnees non fiables. JSON valide et
+  types controles, titre/description requis, entreprise vide et type `autre`
+  par defaut ; `source_extraction=llm` uniquement pour une extraction valide.
+  Sans contenu recuperable, sans cle, si quota atteint ou si le LLM echoue,
+  retour HTTP 200 avec formulaire vide et URL conservee, sans sauvegarde.
+- [x] Quota d'import distinct : `CANDIDATURE_LLM_DAILY_LIMIT` configurable
+  par environnement, 10 extractions LLM/jour/utilisateur par defaut (jour
+  Django, actuellement UTC). Reservations atomiques ; les echecs LLM comptent,
+  les doublons, succes scraping et absences de cle/contenu ne comptent pas.
+  Migration `0004_journalappelllm_usage` : anciens journaux attribues aux
+  recommandations, quotas independants et journalisation sans contenu brut.
+  Tests du repli, de la validation JSON, des quotas et des acces concurrents.
+- [x] Lot 4 : `CandidatureForm.jsx` et `CandidatureCard.jsx` dans
+  `frontend/src/components/Candidatures/`, avec Grid MUI 7 (`size`). Formulaire
+  de creation/edition couvrant tous les champs modifiables, dates facultatives,
+  tags, favori et archivage ; metadonnees automatiques en lecture seule.
+  Erreurs de sauvegarde visibles sans perdre la saisie, commandes bloquees
+  pendant l'enregistrement, suppression avec confirmation.
+- [x] `frontend/src/pages/Candidatures.jsx` : lien et analyse, apercu editable,
+  repli manuel, gestion des erreurs, ajout manuel, liste groupee par statut
+  et compteur. Route protegee directe `/candidatures`.
+  Un doublon ouvre la candidature existante en edition rapide. Client
+  `candidaturesAPI` dans `frontend/src/services/api.js`.
+  Tests frontend et parcours navigateur 390/1440 px avec API simulee.
+  Verification lot 4 : 57 tests / 21 suites reussis. Build reussi avec
+  l'avertissement de dependance de hook deja present dans `TacheListe.jsx`.
+- [x] Lot 5 : entree `Candidatures` dans la navigation principale et barre de
+  filtres `CandidatureFiltres.jsx`. Recherche, statut, type de poste, canal,
+  tags, favori, archives, dates d'ajout et limite, relances dues et tri sont
+  refletes dans l'URL. Les archives sont masquees par defaut.
+- [x] `GET /api/candidatures/` applique les filtres et tris autorises en restant
+  scope par utilisateur. `PATCH /api/candidatures/{id}/archiver/` archive une
+  candidature sans la supprimer. Verification lot 5 : 120 tests backend et
+  63 tests frontend (22 suites) reussis.
+- [x] Lot 6 : migration `0005` avec `ActionCandidature`, date metier distincte
+  de la date de creation et historique ordonne par date decroissante. CRUD
+  imbrique des actions, scope par utilisateur et rattachement au parent impose
+  par l'URL.
+- [x] Page protegee `/candidatures/:id` avec informations generales, edition
+  complete, statut/favori/tags modifiables directement, archivage, suppression,
+  timeline et formulaire d'ajout/edition d'action. Les cartes ouvrent le detail.
+  Verification lot 6 : 126 tests backend et 67 tests frontend (24 suites),
+  parcours navigateur 390/1440 px sans erreur ni debordement.
+- [x] Lot 7 : vue `CandidatureKanban.jsx` avec cinq colonnes de statut,
+  cartes compactes, glisser-deposer accessible et mise a jour par
+  `PATCH /api/candidatures/{id}/`. La bascule Liste/Kanban reste locale a la
+  page et les deux vues partagent les candidatures issues des filtres actifs.
+  Dependance `@hello-pangea/dnd` 18.0.1. Verification lot 7 : 71 tests
+  frontend (25 suites) reussis.
+- [x] Lot 8 : `GET /api/candidatures/export_csv/` exporte les candidatures
+  scopees par utilisateur avec les memes filtres et tris que la liste. Le
+  fichier UTF-8 avec BOM contient les onze colonnes documentees, avec les tags
+  joints par `;` et les cellules de type formule neutralisees. Le bouton
+  `Exporter en CSV` transmet les filtres actifs et declenche le telechargement
+  cote navigateur. Verification lot 8 : 128 tests
+  backend reussis ; 14 tests frontend concernes (2 suites) reussis.
+- [x] Verification finale du module : 129 tests backend et 72 tests frontend
+  (25 suites) reussis. La commande Jest du projet s'execute en serie pour
+  eviter les timeouts MUI/JSDOM lies a la saturation des workers. Le graphe
+  des migrations `api` est coherent et aucun changement de modele non migre
+  n'est detecte. Les migrations `0003` a `0005` restent a appliquer sur la
+  base locale avec `python manage.py migrate`.
+
 ### Preferences et interface
 
 - [x] Preferences utilisateur persistantes : heures productives, theme clair/sombre
@@ -193,8 +289,15 @@ Routes API principales, toutes prefixees par `/api/` :
 - `POST /auth/mot-de-passe-oublie/`, `POST /auth/reinitialiser-mot-de-passe/`
 - `/taches/`, `/taches/{id}/`, `/taches/aujourd_hui/`, `/taches/cette_semaine/`
 - `/taches/statistiques/`, `/taches/meilleur_moment/`, `/taches/recommandation_ia/`
+- `/candidatures/`, `/candidatures/{id}/`
+- `POST /candidatures/import_url/`
+- `PATCH /candidatures/{id}/archiver/`
+- `GET, POST /candidatures/{id}/actions/`
+- `GET, PUT, PATCH, DELETE /candidatures/{id}/actions/{action_id}/`
 - `/categories/`, `/categories/{id}/`
 - `/preferences/`, `/preferences/{id}/`
+
+Routes frontend protegees : `/candidatures` et `/candidatures/:id`.
 
 ## 7. Verification attendue
 
