@@ -67,4 +67,6 @@ Thumbs.db
 *.bak
 *.tmp
 *.temp
+worktrees/
 .worktrees/
+.agents/
