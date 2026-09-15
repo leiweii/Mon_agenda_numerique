@@ -279,7 +279,3 @@ npm test -- --watchAll=false
 ```
 
 Le script de test frontend utilise l'exécution en série via `--runInBand`, configurée dans `package.json`, pour limiter les timeouts liés à JSDOM et Material UI.
-
-## Captures d'écran
-
-*(Captures d'écran à venir)*
