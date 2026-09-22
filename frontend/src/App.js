@@ -27,6 +27,7 @@ import {
   Settings,
   Home as HomeIcon,
   WorkOutline,
+  SmartToyOutlined,
 } from '@mui/icons-material';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -42,6 +43,7 @@ import ReinitialiserMotDePasse from './pages/ReinitialiserMotDePasse';
 import Home from './pages/Home';
 import Candidatures from './pages/Candidatures';
 import CandidatureDetail from './pages/CandidatureDetail';
+import AgentChat from './components/Agent/AgentChat';
 import { preferencesAPI } from './services/api';
 
 const DRAWER_WIDTH = 240;
@@ -111,6 +113,7 @@ const menuItems = [
   { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Mes tâches', icon: <Assignment />, path: '/taches' },
   { text: 'Candidatures', icon: <WorkOutline />, path: '/candidatures' },
+  { text: 'Assistant', icon: <SmartToyOutlined />, path: '/agent' },
   { text: 'Catégories', icon: <Category />, path: '/categories' },
   { text: 'Paramètres', icon: <Settings />, path: '/parametres' },
 ];
@@ -300,6 +303,9 @@ function AppContent({ onThemeChange }) {
         } />
         <Route path="/candidatures/:id" element={
           <ProtectedRoute><MainLayout><CandidatureDetail /></MainLayout></ProtectedRoute>
+        } />
+        <Route path="/agent" element={
+          <ProtectedRoute><MainLayout><AgentChat /></MainLayout></ProtectedRoute>
         } />
       </Routes>
     </Router>

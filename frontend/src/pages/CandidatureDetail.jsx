@@ -14,6 +14,7 @@ import { format, isValid, parseISO } from 'date-fns';
 import ActionForm from '../components/Candidatures/ActionForm';
 import ActionTimeline from '../components/Candidatures/ActionTimeline';
 import CandidatureForm from '../components/Candidatures/CandidatureForm';
+import EmailBrouillonDialog from '../components/Candidatures/EmailBrouillonDialog';
 import { MODES_TRAVAIL, SOURCES_CANAL, STATUTS, TYPES_POSTE } from '../components/Candidatures/options';
 import { candidatureActionsAPI, candidaturesAPI } from '../services/api';
 import { extraireMessageErreur } from '../services/errors';
@@ -41,6 +42,17 @@ export default function CandidatureDetail() {
   const [confirmation, setConfirmation] = useState('');
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
+  const [emails, setEmails] = useState([]);
+  const [cvName, setCvName] = useState('');
+  const [preparationOpen, setPreparationOpen] = useState(false);
+  const [preparationValues, setPreparationValues] = useState({
+    recipient_email: '', civilite: '', prenom_contact: '', nom_contact: '',
+    formation: '', portfolio_url: '', github_url: '',
+  });
+  const [emailDraft, setEmailDraft] = useState(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailNotice, setEmailNotice] = useState('');
 
   const applyCandidature = data => {
     setCandidature(data);
@@ -51,12 +63,16 @@ export default function CandidatureDetail() {
     setLoading(true);
     setError('');
     try {
-      const [candidatureResponse, actionsResponse] = await Promise.all([
+      const [candidatureResponse, actionsResponse, emailsResponse, cvResponse] = await Promise.all([
         candidaturesAPI.getById(candidatureId),
         candidatureActionsAPI.getAll(candidatureId),
+        candidaturesAPI.getEmails(candidatureId),
+        candidaturesAPI.getDefaultCv(),
       ]);
       applyCandidature(candidatureResponse.data);
       setActions(actionsResponse.data);
+      setEmails(emailsResponse.data);
+      setCvName(cvResponse.data.filename || '');
     } catch (failure) {
       setError(extraireMessageErreur(failure, 'Impossible de charger cette candidature.'));
     } finally {
@@ -97,6 +113,70 @@ export default function CandidatureDetail() {
     if (!window.confirm('Supprimer cette action ?')) return;
     await candidatureActionsAPI.delete(candidatureId, item.id);
     setActions(current => current.filter(action => action.id !== item.id));
+  };
+
+  const changePreparation = field => event => {
+    setPreparationValues(current => ({ ...current, [field]: event.target.value }));
+  };
+
+  const prepareEmail = async () => {
+    setEmailBusy(true);
+    setEmailError('');
+    setEmailNotice('');
+    try {
+      const response = await candidaturesAPI.prepareEmail(candidatureId, preparationValues);
+      setEmails(current => [response.data, ...current]);
+      setPreparationOpen(false);
+      setEmailDraft(response.data);
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible de préparer le brouillon.'));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const saveEmail = async (emailId, values) => {
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.updateEmail(candidatureId, emailId, values);
+      setEmails(current => current.map(item => item.id === emailId ? response.data : item));
+      setEmailDraft(response.data);
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible d’enregistrer le brouillon.'));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const cancelEmail = async emailId => {
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.cancelEmail(candidatureId, emailId);
+      setEmails(current => current.map(item => item.id === emailId ? response.data : item));
+      setEmailDraft(null);
+      setEmailNotice('Brouillon annulé.');
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible d’annuler le brouillon.'));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const prepareSend = async (emailId, values) => {
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.prepareEmailSend(candidatureId, emailId, values);
+      setEmails(current => current.map(item => item.id === emailId ? response.data : item));
+      setEmailDraft(null);
+      setEmailNotice('Envoi préparé. Aucun email n’a été envoyé.');
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible de préparer l’envoi.'));
+    } finally {
+      setEmailBusy(false);
+    }
   };
 
   const confirm = async () => {
@@ -192,11 +272,51 @@ export default function CandidatureDetail() {
       </Box>
 
       <Divider sx={{ mb: 3 }} />
+      <Box component="section" aria-labelledby="emails-title" sx={{ pb: 3 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2}>
+          <Typography id="emails-title" component="h2" variant="h6">Emails de candidature</Typography>
+          <Button variant="outlined" onClick={() => { setEmailError(''); setPreparationOpen(true); }} disabled={emailBusy}>Préparer un email</Button>
+        </Stack>
+        <Typography color="text.secondary" sx={{ mt: 1 }}>CV par défaut : {cvName || 'Aucun CV configuré'}</Typography>
+        {emailNotice && <Alert severity="info" sx={{ mt: 2 }}>{emailNotice}</Alert>}
+        {emails.length === 0 && <Typography color="text.secondary" sx={{ mt: 2 }}>Aucun brouillon préparé.</Typography>}
+        <Stack spacing={1} sx={{ mt: 2 }}>
+          {emails.map(email => (
+            <Stack key={email.id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1}>
+              <Typography sx={{ overflowWrap: 'anywhere' }}>{email.subject} — {email.recipient_email}</Typography>
+              <Chip size="small" label={{ draft: 'Brouillon', ready: 'Prêt à envoyer', cancelled: 'Annulé', sent: 'Envoyé', failed: 'Échec', sending: 'En cours' }[email.status] || email.status} />
+              {email.status === 'draft' && <Button onClick={() => { setEmailError(''); setEmailDraft(email); }} disabled={emailBusy} aria-label={`Voir le brouillon ${email.subject}`}>Voir</Button>}
+            </Stack>
+          ))}
+        </Stack>
+      </Box>
+
+      <Divider sx={{ mb: 3 }} />
       <ActionTimeline actions={actions} disabled={busy} onAdd={() => setActionEditor(null)}
         onEdit={setActionEditor} onDelete={deleteAction} />
 
       <CandidatureForm open={editorOpen} candidature={candidature} onClose={() => setEditorOpen(false)} onSubmit={saveGeneral} />
       <ActionForm open={actionEditor !== undefined} action={actionEditor || null} onClose={() => setActionEditor(undefined)} onSubmit={saveAction} />
+      <Dialog open={preparationOpen} onClose={() => { if (!emailBusy) setPreparationOpen(false); }} fullWidth maxWidth="sm" aria-labelledby="prepare-email-title">
+        <DialogTitle id="prepare-email-title">Préparer un email</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            {emailError && <Grid size={12}><Alert severity="error">{emailError}</Alert></Grid>}
+            <Grid size={12}><TextField fullWidth required type="email" label="Destinataire" value={preparationValues.recipient_email} onChange={changePreparation('recipient_email')} disabled={emailBusy} /></Grid>
+            <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth label="Civilité" value={preparationValues.civilite} onChange={changePreparation('civilite')} disabled={emailBusy} /></Grid>
+            <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth label="Prénom du contact" value={preparationValues.prenom_contact} onChange={changePreparation('prenom_contact')} disabled={emailBusy} /></Grid>
+            <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth label="Nom du contact" value={preparationValues.nom_contact} onChange={changePreparation('nom_contact')} disabled={emailBusy} /></Grid>
+            <Grid size={12}><TextField fullWidth required label="Formation" value={preparationValues.formation} onChange={changePreparation('formation')} disabled={emailBusy} /></Grid>
+            <Grid size={12}><TextField fullWidth required type="url" label="Portfolio" value={preparationValues.portfolio_url} onChange={changePreparation('portfolio_url')} disabled={emailBusy} /></Grid>
+            <Grid size={12}><TextField fullWidth required type="url" label="GitHub" value={preparationValues.github_url} onChange={changePreparation('github_url')} disabled={emailBusy} /></Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreparationOpen(false)} disabled={emailBusy}>Fermer</Button>
+          <Button variant="contained" onClick={prepareEmail} disabled={emailBusy || !preparationValues.recipient_email.trim() || !preparationValues.formation.trim() || !preparationValues.portfolio_url.trim() || !preparationValues.github_url.trim()}>Créer le brouillon</Button>
+        </DialogActions>
+      </Dialog>
+      <EmailBrouillonDialog open={Boolean(emailDraft)} draft={emailDraft} cvName={cvName} busy={emailBusy} error={emailError} onSave={saveEmail} onCancel={cancelEmail} onSend={prepareSend} />
       <Dialog open={Boolean(confirmation)} onClose={() => { if (!busy) setConfirmation(''); }}>
         <DialogTitle>{confirmation === 'archive' ? 'Archiver la candidature ?' : 'Supprimer la candidature ?'}</DialogTitle>
         <DialogContent><Typography>{confirmation === 'archive' ? 'Elle ne figurera plus dans la liste active.' : 'Cette suppression est definitive et effacera son historique.'}</Typography></DialogContent>

@@ -31,6 +31,7 @@ jest.mock('./pages/Login', () => () => <div />);
 jest.mock('./pages/Home', () => () => <div />);
 jest.mock('./pages/Candidatures', () => () => <div />);
 jest.mock('./pages/CandidatureDetail', () => () => <div />);
+jest.mock('./components/Agent/AgentChat', () => () => <div />);
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-theme');
@@ -51,4 +52,10 @@ test('shows Candidatures in the main navigation', () => {
   preferencesAPI.get.mockResolvedValue({ data: [] });
   render(<App />);
   expect(screen.getAllByText('Candidatures').length).toBeGreaterThan(0);
+});
+
+test('shows Assistant in the main navigation', () => {
+  preferencesAPI.get.mockResolvedValue({ data: [] });
+  render(<App />);
+  expect(screen.getAllByText('Assistant').length).toBeGreaterThan(0);
 });

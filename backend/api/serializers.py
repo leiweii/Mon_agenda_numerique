@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
-from api.models import ActionCandidature, Candidature
+from api.models import ActionCandidature, Candidature, EmailCandidature
 from django.contrib.auth.models import User
 from urllib.parse import urlsplit
 
@@ -74,3 +74,28 @@ class ActionCandidatureSerializer(serializers.ModelSerializer):
         model = ActionCandidature
         fields = '__all__'
         read_only_fields = ['candidature', 'date_creation']
+
+
+class PreparationEmailCandidatureSerializer(serializers.Serializer):
+    recipient_email = serializers.EmailField(max_length=254)
+    civilite = serializers.CharField(required=False, allow_blank=True, max_length=30)
+    prenom_contact = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    nom_contact = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    formation = serializers.CharField(max_length=255)
+    portfolio_url = serializers.URLField(max_length=500)
+    github_url = serializers.URLField(max_length=500)
+
+
+class EmailCandidatureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailCandidature
+        fields = '__all__'
+        read_only_fields = [
+            'candidature',
+            'status',
+            'created_at',
+            'updated_at',
+            'sent_at',
+            'error_message',
+            'gmail_message_id',
+        ]

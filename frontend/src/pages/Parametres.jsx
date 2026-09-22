@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import { preferencesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import GmailConnectionCard from '../components/Candidatures/GmailConnectionCard';
 
 const Parametres = ({ onThemeChange }) => {
   const { user } = useAuth();
@@ -109,6 +110,9 @@ const Parametres = ({ onThemeChange }) => {
       )}
 
       <Grid container spacing={3}>
+        <Grid size={12}>
+          <GmailConnectionCard />
+        </Grid>
         {/* Profil */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Card>

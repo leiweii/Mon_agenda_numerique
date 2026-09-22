@@ -1,23 +1,34 @@
 import csv
 import logging
 import time
+from pathlib import PurePosixPath
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from datetime import date, timedelta
 from agenda.models import Tache, Categorie, PreferenceUtilisateur, StatistiqueUtilisation
-from api.models import Candidature
+from api.models import CVUtilisateur, Candidature, EmailCandidature
 from .candidature_scraper import formulaire_vide, normaliser_url, scraper_candidature
 from .candidature_llm import extraire_candidature_llm
+from .email_candidature_service import preparer_contenu_email
 from .serializers import ImportCandidatureSerializer
-from .serializers import ActionCandidatureSerializer, CandidatureSerializer, TacheSerializer, CategorieSerializer, PreferenceUtilisateurSerializer
+from .serializers import (
+    ActionCandidatureSerializer,
+    CandidatureSerializer,
+    CategorieSerializer,
+    EmailCandidatureSerializer,
+    PreferenceUtilisateurSerializer,
+    PreparationEmailCandidatureSerializer,
+    TacheSerializer,
+)
 from .llm_service import appeler_llm, construire_prompt, parser_reponse
 from .llm_performance import (
     construire_cle_cache,
@@ -184,6 +195,11 @@ class CandidatureViewSet(viewsets.ModelViewSet):
         serializer.save(utilisateur=self.request.user)
 
     @action(detail=False, methods=['get'])
+    def cv_par_defaut(self, request):
+        cv = CVUtilisateur.objects.filter(utilisateur=request.user).first()
+        return Response({'filename': PurePosixPath(cv.fichier.name).name if cv else None})
+
+    @action(detail=False, methods=['get'])
     def export_csv(self, request):
         columns = [
             'titre', 'entreprise', 'type_poste', 'statut', 'source_canal',
@@ -217,6 +233,80 @@ class CandidatureViewSet(viewsets.ModelViewSet):
         candidature.archive = True
         candidature.save(update_fields=['archive', 'date_modification'])
         return Response(self.get_serializer(candidature).data)
+
+    @action(detail=True, methods=['post'])
+    def preparer_email(self, request, pk=None):
+        candidature = self.get_object()
+        serializer = PreparationEmailCandidatureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        donnees = serializer.validated_data
+        contenu = preparer_contenu_email(
+            entreprise=candidature.entreprise,
+            nom_contact=donnees.get('nom_contact', ''),
+            prenom_contact=donnees.get('prenom_contact', ''),
+            civilite=donnees.get('civilite', ''),
+            poste=candidature.titre,
+            formation=donnees['formation'],
+            portfolio_url=donnees['portfolio_url'],
+            github_url=donnees['github_url'],
+        )
+        recipient_name = ' '.join(
+            part for part in (
+                donnees.get('prenom_contact', '').strip(),
+                donnees.get('nom_contact', '').strip(),
+            )
+            if part
+        )
+        email = EmailCandidature.objects.create(
+            candidature=candidature,
+            recipient_email=donnees['recipient_email'],
+            recipient_name=recipient_name,
+            subject=contenu['subject'],
+            body=contenu['body'],
+        )
+        return Response(EmailCandidatureSerializer(email).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def emails(self, request, pk=None):
+        candidature = self.get_object()
+        return Response(EmailCandidatureSerializer(candidature.emails.all(), many=True).data)
+
+    @action(detail=True, methods=['patch'], url_path=r'emails/(?P<email_id>[^/.]+)')
+    def email_item(self, request, pk=None, email_id=None):
+        candidature = self.get_object()
+        with transaction.atomic():
+            email = get_object_or_404(candidature.emails.select_for_update(), pk=email_id)
+            if email.status != EmailCandidature.Status.DRAFT:
+                return Response({'detail': 'Ce brouillon ne peut plus etre modifie.'}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = EmailCandidatureSerializer(email, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path=r'emails/(?P<email_id>[^/.]+)/annuler')
+    def annuler_email(self, request, pk=None, email_id=None):
+        candidature = self.get_object()
+        with transaction.atomic():
+            email = get_object_or_404(candidature.emails.select_for_update(), pk=email_id)
+            if email.status != EmailCandidature.Status.DRAFT:
+                return Response({'detail': 'Ce brouillon ne peut plus etre annule.'}, status=status.HTTP_400_BAD_REQUEST)
+            email.status = EmailCandidature.Status.CANCELLED
+            email.save(update_fields=['status', 'updated_at'])
+        return Response(EmailCandidatureSerializer(email).data)
+
+    @action(detail=True, methods=['post'], url_path=r'emails/(?P<email_id>[^/.]+)/preparer_envoi')
+    def preparer_envoi_email(self, request, pk=None, email_id=None):
+        candidature = self.get_object()
+        with transaction.atomic():
+            email = get_object_or_404(candidature.emails.select_for_update(), pk=email_id)
+            if email.status != EmailCandidature.Status.DRAFT:
+                return Response({'detail': 'Ce brouillon ne peut plus etre prepare.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not CVUtilisateur.objects.filter(utilisateur=request.user).exists():
+                return Response({'detail': 'Configurez un CV par defaut avant de preparer l’envoi.'}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = EmailCandidatureSerializer(email, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            email = serializer.save(status=EmailCandidature.Status.READY)
+        return Response(EmailCandidatureSerializer(email).data)
 
     @action(detail=True, methods=['get', 'post'], url_path='actions')
     def actions(self, request, pk=None):

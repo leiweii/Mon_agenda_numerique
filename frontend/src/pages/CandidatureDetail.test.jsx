@@ -12,6 +12,8 @@ jest.mock('react-router-dom', () => ({
 jest.mock('../services/api', () => ({
   candidaturesAPI: {
     getById: jest.fn(), update: jest.fn(), patch: jest.fn(), archive: jest.fn(), delete: jest.fn(),
+    getDefaultCv: jest.fn(), getEmails: jest.fn(), prepareEmail: jest.fn(),
+    updateEmail: jest.fn(), cancelEmail: jest.fn(), prepareEmailSend: jest.fn(),
   },
   candidatureActionsAPI: {
     getAll: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(),
@@ -38,6 +40,8 @@ beforeEach(() => {
   jest.resetAllMocks();
   candidaturesAPI.getById.mockResolvedValue({ data: candidature });
   candidatureActionsAPI.getAll.mockResolvedValue({ data: [existingAction] });
+  candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: 'CV_backend.pdf' } });
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [] });
 });
 
 test('renders general information and adds an action to the timeline', async () => {
@@ -95,11 +99,54 @@ test('archives and deletes from the header after confirmation', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Archiver' }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archiver' }));
   await waitFor(() => expect(candidaturesAPI.archive).toHaveBeenCalledWith(7));
-  expect(screen.getByText('Archivee')).toBeInTheDocument();
+  expect(await screen.findByText('Archivee')).toBeInTheDocument();
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
   fireEvent.click(screen.getByRole('button', { name: 'Supprimer' }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer definitivement' }));
   await waitFor(() => expect(candidaturesAPI.delete).toHaveBeenCalledWith(7));
   expect(mockNavigate).toHaveBeenCalledWith('/candidatures');
+});
+
+test('prepares then edits and saves a draft without sending it', async () => {
+  const draft = { id: 18, recipient_email: 'first@example.com', subject: 'First', body: 'First body', status: 'draft' };
+  candidaturesAPI.prepareEmail.mockResolvedValue({ data: draft });
+  candidaturesAPI.updateEmail.mockResolvedValue({ data: { ...draft, subject: 'Updated subject' } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Préparer un email' }));
+  const preparation = screen.getByRole('dialog', { name: 'Préparer un email' });
+  fireEvent.change(within(preparation).getByRole('textbox', { name: 'Destinataire' }), { target: { value: 'first@example.com' } });
+  fireEvent.change(within(preparation).getByRole('textbox', { name: 'Formation' }), { target: { value: 'Licence professionnelle' } });
+  fireEvent.change(within(preparation).getByRole('textbox', { name: 'Portfolio' }), { target: { value: 'https://portfolio.example.com' } });
+  fireEvent.change(within(preparation).getByRole('textbox', { name: 'GitHub' }), { target: { value: 'https://github.com/example' } });
+  fireEvent.click(within(preparation).getByRole('button', { name: 'Créer le brouillon' }));
+
+  await waitFor(() => expect(candidaturesAPI.prepareEmail).toHaveBeenCalledWith(7, expect.objectContaining({
+    recipient_email: 'first@example.com', formation: 'Licence professionnelle',
+  })));
+  const preview = await screen.findByRole('dialog', { name: 'Prévisualiser le brouillon' });
+  expect(within(preview).getByText('CV_backend.pdf')).toBeInTheDocument();
+  fireEvent.change(within(preview).getByRole('textbox', { name: 'Objet' }), { target: { value: 'Updated subject' } });
+  fireEvent.click(within(preview).getByRole('button', { name: 'Enregistrer' }));
+
+  await waitFor(() => expect(candidaturesAPI.updateEmail).toHaveBeenCalledWith(7, 18, {
+    recipient_email: 'first@example.com', subject: 'Updated subject', body: 'First body',
+  }));
+  expect(candidaturesAPI.prepareEmailSend).not.toHaveBeenCalled();
+}, 20000);
+
+test('annuls an existing draft and leaves it visible with cancelled status', async () => {
+  const draft = { id: 19, recipient_email: 'first@example.com', subject: 'First', body: 'First body', status: 'draft' };
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [draft] });
+  candidaturesAPI.cancelEmail.mockResolvedValue({ data: { ...draft, status: 'cancelled' } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Voir le brouillon First' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Prévisualiser le brouillon' })).getByRole('button', { name: 'Annuler' }));
+
+  await waitFor(() => expect(candidaturesAPI.cancelEmail).toHaveBeenCalledWith(7, 19));
+  expect(await screen.findByText('Annulé')).toBeInTheDocument();
 });

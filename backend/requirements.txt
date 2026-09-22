@@ -1,8 +1,10 @@
 asgiref==3.11.0
 anthropic==1.4.0
+cryptography==50.0.1
 Django==6.0.1
 django-cors-headers==4.9.0
 djangorestframework==3.16.1
+google-auth-oauthlib==1.4.1
 pillow==12.1.0
 psycopg2-binary==2.9.11
 python-decouple==3.8

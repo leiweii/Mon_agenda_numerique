@@ -73,6 +73,12 @@ export const candidaturesAPI = {
   patch: (id, data) => api.patch(`candidatures/${id}/`, data),
   delete: (id) => api.delete(`candidatures/${id}/`),
   archive: (id) => api.patch(`candidatures/${id}/archiver/`),
+  getDefaultCv: () => api.get('candidatures/cv_par_defaut/'),
+  getEmails: (id) => api.get(`candidatures/${id}/emails/`),
+  prepareEmail: (id, data) => api.post(`candidatures/${id}/preparer_email/`, data),
+  updateEmail: (candidatureId, emailId, data) => api.patch(`candidatures/${candidatureId}/emails/${emailId}/`, data),
+  cancelEmail: (candidatureId, emailId) => api.post(`candidatures/${candidatureId}/emails/${emailId}/annuler/`),
+  prepareEmailSend: (candidatureId, emailId, data) => api.post(`candidatures/${candidatureId}/emails/${emailId}/preparer_envoi/`, data),
 };
 
 export const candidatureActionsAPI = {
@@ -80,6 +86,19 @@ export const candidatureActionsAPI = {
   create: (candidatureId, data) => api.post(`candidatures/${candidatureId}/actions/`, data),
   update: (candidatureId, actionId, data) => api.put(`candidatures/${candidatureId}/actions/${actionId}/`, data),
   delete: (candidatureId, actionId) => api.delete(`candidatures/${candidatureId}/actions/${actionId}/`),
+};
+
+export const gmailAPI = {
+  connect: () => api.post('gmail/connecter/'),
+  getStatus: () => api.get('gmail/statut/'),
+  verify: () => api.post('gmail/verifier/'),
+};
+
+export const agentAPI = {
+  sendMessage: (data) => api.post('agent/chat/', data),
+  getConversation: (id) => api.get(`agent/conversations/${id}/`),
+  confirmAction: (id) => api.post(`agent/actions/${id}/confirmer/`),
+  cancelAction: (id) => api.post(`agent/actions/${id}/annuler/`),
 };
 
 export default api;

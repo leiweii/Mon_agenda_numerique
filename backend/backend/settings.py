@@ -83,6 +83,10 @@ from decouple import config
 
 LLM_API_KEY = config('LLM_API_KEY', default='')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+GMAIL_OAUTH_CLIENT_ID = config('GMAIL_OAUTH_CLIENT_ID', default='')
+GMAIL_OAUTH_CLIENT_SECRET = config('GMAIL_OAUTH_CLIENT_SECRET', default='')
+GMAIL_OAUTH_REDIRECT_URI = config('GMAIL_OAUTH_REDIRECT_URI', default='')
+GMAIL_TOKEN_ENCRYPTION_KEY = config('GMAIL_TOKEN_ENCRYPTION_KEY', default='')
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)

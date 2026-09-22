@@ -66,6 +66,80 @@ class Candidature(models.Model):
         return f'{self.titre} - {self.entreprise}' if self.entreprise else self.titre
 
 
+class CVUtilisateur(models.Model):
+    utilisateur = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='cv_par_defaut',
+    )
+    fichier = models.FileField(upload_to='cv/')
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.fichier.name
+
+
+class EmailCandidature(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Brouillon'
+        READY = 'ready', 'Pret'
+        SENDING = 'sending', 'En cours d’envoi'
+        SENT = 'sent', 'Envoye'
+        FAILED = 'failed', 'Echec'
+        CANCELLED = 'cancelled', 'Annule'
+
+    candidature = models.ForeignKey(
+        Candidature,
+        on_delete=models.CASCADE,
+        related_name='emails',
+    )
+    recipient_email = models.EmailField()
+    recipient_name = models.CharField(max_length=255, blank=True)
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    gmail_message_id = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.subject} - {self.recipient_email}'
+
+
+class ConnexionGmail(models.Model):
+    class Statut(models.TextChoices):
+        CONNECTE = 'connected', 'Connecte'
+        RECONNEXION_REQUISE = 'reconnect_required', 'Reconnexion requise'
+
+    utilisateur = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='connexion_gmail',
+    )
+    refresh_token_chiffre = models.TextField(blank=True)
+    statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.CONNECTE)
+    date_connexion = models.DateTimeField(auto_now_add=True)
+    date_verification = models.DateTimeField(null=True, blank=True)
+
+
+class TentativeOAuthGmail(models.Model):
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tentatives_oauth_gmail',
+    )
+    state_digest = models.CharField(max_length=64, unique=True)
+    pkce_verifier_chiffre = models.TextField(blank=True)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+
 class ActionCandidature(models.Model):
     class TypeAction(models.TextChoices):
         CANDIDATURE_ENVOYEE = 'envoyee', 'Candidature envoyee'
@@ -93,6 +167,57 @@ class ActionCandidature(models.Model):
 
     def __str__(self):
         return f'{self.get_type_action_display()} - {self.candidature}'
+
+
+class ConversationAgent(models.Model):
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='conversations_agent',
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_derniere_activite = models.DateTimeField(auto_now=True)
+
+
+class MessageAgent(models.Model):
+    class Role(models.TextChoices):
+        UTILISATEUR = 'utilisateur', 'Utilisateur'
+        AGENT = 'agent', 'Agent'
+        OUTIL = 'outil', "Resultat d'outil"
+
+    conversation = models.ForeignKey(
+        ConversationAgent,
+        on_delete=models.CASCADE,
+        related_name='messages',
+    )
+    role = models.CharField(max_length=20, choices=Role.choices)
+    contenu = models.TextField()
+    tool_name = models.CharField(max_length=50, blank=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+
+class ActionEnAttente(models.Model):
+    class Statut(models.TextChoices):
+        EN_ATTENTE = 'en_attente', 'En attente'
+        CONFIRMEE = 'confirmee', 'Confirmee'
+        ANNULEE = 'annulee', 'Annulee'
+        EXPIREE = 'expiree', 'Expiree'
+
+    conversation = models.ForeignKey(
+        ConversationAgent,
+        on_delete=models.CASCADE,
+        related_name='actions_en_attente',
+    )
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='actions_agent_en_attente',
+    )
+    tool_name = models.CharField(max_length=50)
+    arguments = models.JSONField()
+    statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.EN_ATTENTE)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_traitement = models.DateTimeField(null=True, blank=True)
 
 
 class EntreeCacheRecommandation(models.Model):

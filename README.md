@@ -90,6 +90,15 @@ J'ai choisi ce projet parce qu'il répond à un besoin personnel réel : mieux o
 - Historique d'actions par candidature : candidature envoyée, relance, entretiens, test technique, offre reçue, réponse négative et note libre.
 - Export CSV des candidatures en respectant les filtres actifs.
 
+### Assistant de planification
+
+- Page protégée `/agent` avec fil de conversation persistant.
+- Consultation des tâches du jour et des candidatures de l'utilisateur.
+- Proposition de création ou de modification d'une tâche sans écriture immédiate.
+- Confirmation ou annulation explicite des écritures ; le client transmet uniquement l'identifiant de l'action.
+- Actions non traitées automatiquement expirées après 24 heures.
+- Limite actuelle : le quota LLM dédié, la protection anti-injection des données de candidatures et la gestion structurée des erreurs de tools du lot 4 restent à implémenter.
+
 ## Stack technique
 
 | Domaine | Technologies |
@@ -199,19 +208,21 @@ mon_agenda/
 ├── backend/
 │   ├── backend/          # Configuration Django
 │   ├── agenda/           # Tâches, catégories, préférences, statistiques
-│   └── api/              # API REST, auth, candidatures, LLM, tests
+│   └── api/              # API REST, auth, candidatures, agent, LLM, tests
 ├── docs/                 # Contrats LLM et notes de conception
 ├── AGENTS.md             # État réel du projet et consignes de reprise
 ├── README.md
 └── frontend/
     └── src/
-        ├── components/   # UI par domaine : tâches, catégories, stats, candidatures
+        ├── components/   # UI : tâches, catégories, stats, candidatures, agent
         ├── pages/        # Pages React principales
         ├── context/      # État d'authentification
         └── services/     # Client API et gestion d'erreurs
 ```
 
 Le module de suivi de candidatures se trouve principalement dans `backend/api/` côté API et dans `frontend/src/pages/Candidatures.jsx`, `frontend/src/pages/CandidatureDetail.jsx` et `frontend/src/components/Candidatures/` côté interface.
+
+L'assistant utilise principalement `backend/api/agent_service.py`, `backend/api/agent_tools.py`, `backend/api/agent_views.py`, `backend/api/agent_retention.py` et `frontend/src/components/Agent/AgentChat.jsx`.
 
 ## Routes API
 
@@ -243,6 +254,10 @@ Toutes les routes applicatives sont préfixées par `/api/`.
 | PATCH | `/api/candidatures/{id}/archiver/` | Archivage d'une candidature |
 | GET, POST | `/api/candidatures/{id}/actions/` | Liste ou création des actions liées à une candidature |
 | GET, PUT, PATCH, DELETE | `/api/candidatures/{id}/actions/{action_id}/` | Détail, modification ou suppression d'une action de candidature |
+| POST | `/api/agent/chat/` | Envoi d'un message et création ou reprise d'une conversation |
+| GET | `/api/agent/conversations/{id}/` | Historique d'une conversation appartenant à l'utilisateur |
+| POST | `/api/agent/actions/{id}/confirmer/` | Confirmation d'une action avec les arguments stockés côté serveur |
+| POST | `/api/agent/actions/{id}/annuler/` | Annulation d'une action sans exécution |
 
 L'administration Django reste disponible sur :
 
@@ -257,6 +272,7 @@ L'administration Django reste disponible sur :
 - Remplacer les statistiques de démonstration de la page Paramètres par des données calculées côté API.
 - Alimenter automatiquement les statistiques d'utilisation lors de la complétion normale des tâches, afin d'améliorer la recommandation locale du meilleur moment.
 - Poursuivre l'harmonisation responsive de certains formulaires encore basés sur d'anciens usages de Grid MUI.
+- Terminer le lot 4 de l'assistant : quota LLM indépendant, protection anti-injection et gestion structurée des erreurs de tools.
 
 ## Tests
 
@@ -279,7 +295,3 @@ npm test -- --watchAll=false
 ```
 
 Le script de test frontend utilise l'exécution en série via `--runInBand`, configurée dans `package.json`, pour limiter les timeouts liés à JSDOM et Material UI.
-
-## Captures d'écran
-
-*(Captures d'écran à venir)*

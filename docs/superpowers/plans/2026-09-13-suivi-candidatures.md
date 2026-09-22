@@ -1,8 +1,7 @@
 # Suivi des candidatures - Document de conception
 
-Statut : proposition, en attente de confirmation architecturale (voir section 8).
-Emplacement suggere dans le depot : `docs/superpowers/plans/2026-09-13-suivi-candidatures.md`,
-avec un lien resume ajoute dans `AGENTS.md` une fois le lot demarre.
+Statut : lots 1 a 8 implementes. L'etat teste et les limites actuelles sont
+resumes dans `AGENTS.md` section 5.
 
 ## 1. Objectif
 

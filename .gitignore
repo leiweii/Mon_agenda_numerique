@@ -71,3 +71,4 @@ Thumbs.db
 worktrees/
 .worktrees/
 .agents/
+tmp/pdfs/cv_review/
