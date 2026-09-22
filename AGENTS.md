@@ -35,6 +35,12 @@ Stack actuelle :
   d'offres que le scraper ne peut pas extraire.
 - `backend/api/llm_service.py` : prompt, appel Anthropic, parsing et validation de reponse.
 - `backend/api/llm_performance.py` : cache, quota, journalisation et purge LLM.
+- `backend/api/agent_service.py` : boucle d'orchestration bornee, appel LLM,
+  persistance des messages et creation des propositions d'ecriture.
+- `backend/api/agent_tools.py` : tools de lecture et d'ecriture scopes par
+  utilisateur pour les taches et candidatures.
+- `backend/api/agent_retention.py` : expiration a 24 h et purge probabiliste
+  des actions agent en attente.
 - `backend/api/signals.py` : invalidation du cache de recommandation.
 - `frontend/src/services/api.js` : client Axios et base URL locale.
 - `frontend/src/context/AuthContext.jsx` : etat d'authentification React.
@@ -48,12 +54,16 @@ Stack actuelle :
 - `frontend/src/pages/Candidatures.jsx` et `CandidatureDetail.jsx` : liste,
   import, export et suivi detaille des candidatures.
 - `frontend/src/components/RecommandationsIA.jsx` : carte de recommandation IA.
+- `frontend/src/components/Agent/AgentChat.jsx` : fil de conversation, reprise
+  de l'historique et confirmation ou annulation des actions proposees.
 - `docs/llm-contract.md` : contrat prompt/reponse des recommandations.
 - `docs/llm-cache-quota-logging.md` : architecture cache, quota et journalisation.
 - `docs/superpowers/plans/2026-09-10-llm-cache-quota-logging.md` : plan de mise en oeuvre detaille du controle cache/quota/journaux.
 - `docs/superpowers/specs/2026-09-10-authentification-complete-design.md` : conception de l'authentification complete.
 - `docs/superpowers/plans/2026-09-10-authentification-complete.md` : plan d'execution de l'authentification complete.
 - `docs/superpowers/plans/2026-09-13-suivi-candidatures.md` : conception et decoupage en lots du module de suivi des candidatures.
+- `docs/superpowers/plans/2026-09-15-agent-planification.md` : conception,
+  securite et decoupage en six lots de l'assistant de planification.
 
 ## 3. Commandes utiles
 
@@ -230,6 +240,46 @@ avec limite connue ; `[ ]` absent.
   n'est detecte. Les migrations `0003` a `0005` restent a appliquer sur la
   base locale avec `python manage.py migrate`.
 
+### Emails de candidature
+
+- [x] Lot 1 : modeles `EmailCandidature` et `CVUtilisateur`, avec migration
+  `api.0007`. Une candidature peut conserver plusieurs emails, scopes par le
+  proprietaire de la candidature. Les statuts `draft`, `ready`, `sending`,
+  `sent`, `failed` et `cancelled` sont disponibles, avec `draft` par defaut.
+  Un seul CV par defaut est autorise par utilisateur en V1. Verification :
+  162 tests backend reussis, dont 5 tests dedies au lot ; `api.0007` est
+  appliquee sur la base locale.
+- [x] Lot 2 : `backend/api/email_candidature_service.py` remplace les variables
+  entreprise, contact, civilite, poste, formation, portfolio et GitHub dans le
+  template deterministe. Si le nom ou la civilite manque, la salutation devient
+  `Bonjour Madame, Monsieur`. `POST /api/candidatures/{id}/preparer_email/`
+  cree un `EmailCandidature` au statut `draft`, scope par l'utilisateur, sans
+  appel Gmail ni connexion reseau. Verification : 169 tests backend reussis,
+  dont 12 tests du module email et 7 ajoutes pour ce lot.
+- [x] Lot 3 : la page detail d'une candidature permet de preparer, consulter
+  et editer le destinataire, l'objet et le message d'un brouillon. Elle affiche
+  le nom du CV par defaut. `Enregistrer` persiste les modifications ; `Annuler`
+  passe le brouillon a `cancelled` ; `Envoyer` persiste les modifications et
+  passe le brouillon a `ready`, sans envoyer d'email. Les endpoints sont scopes
+  par le proprietaire de la candidature et les statuts terminaux ne sont pas
+  modifiables. Verification du lot : 174 tests backend et 82 tests frontend
+  (27 suites) reussis.
+- [x] Lot 4 : OAuth 2.0 Gmail dans les Parametres avec bouton de connexion,
+  `state` a usage unique (10 minutes), PKCE S256 et scope `gmail.send`.
+  Migration `api.0008` : `ConnexionGmail` stocke uniquement le refresh token
+  chiffre et `TentativeOAuthGmail` protege le retour OAuth. Les quatre routes
+  `/api/gmail/` couvrent connexion, callback, statut et verification ; un token
+  expire est renouvelle, un token revoque demande une reconnexion. Variables
+  backend requises : `GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET`,
+  `GMAIL_OAUTH_REDIRECT_URI`, `GMAIL_TOKEN_ENCRYPTION_KEY` (jamais commitees).
+  Tests Google entierement mocks : 193 tests backend et 87 tests frontend
+  (28 suites) reussis ; `api.0008` appliquee sur la base locale. Aucun envoi
+  d'email dans ce lot.
+- [ ] Envoi reel Gmail et interface d'upload/remplacement du CV par defaut
+  non commences ; la validation OAuth reelle avec un compte Google reste a
+  faire une fois les variables configurees. En mode Google Testing, le refresh
+  token peut expirer apres sept jours et exiger une reconnexion.
+
 ### Preferences et interface
 
 - [x] Preferences utilisateur persistantes : heures productives, theme clair/sombre
@@ -264,6 +314,54 @@ avec limite connue ; `[ ]` absent.
 - [x] Frontend `RecommandationsIA.jsx` avec etats chargement, succes, erreur et
   action de nouvel essai.
 
+### Agent personnel de planification
+
+- [x] Lot 1 : modeles `ConversationAgent`, `MessageAgent` et
+  `ActionEnAttente`, avec migration `api.0006`. Les tools de lecture
+  `get_today_tasks(user)` et `get_applications(user)` sont disponibles dans
+  `backend/api/agent_tools.py` et appliquent un scoping strict par utilisateur ;
+  les candidatures archivees sont exclues et la date de derniere action est
+  incluse. Verification lot 1 : 134 tests backend reussis.
+- [x] Lot 2 : `backend/api/agent_service.py` fournit une boucle bornee a cinq
+  etapes, transmet la date locale au LLM, persiste les messages et retourne le
+  message de repli documente si elle ne conclut pas. `POST /api/agent/chat/`
+  cree ou reprend une conversation scopee par utilisateur. Seuls les deux tools
+  de lecture du lot 1 sont exposes. Verification lot 2 : 141 tests backend
+  reussis. Conception et lots suivants :
+  `docs/superpowers/plans/2026-09-15-agent-planification.md`.
+- [x] Lot 3 : tools `create_task` et `update_task` scopes par utilisateur,
+  avec erreur explicite pour une categorie inexistante ou appartenant a un
+  autre utilisateur. Une demande d'ecriture cree une `ActionEnAttente` et
+  arrete la boucle sans modifier la tache. Les endpoints `confirmer/` et
+  `annuler/` verrouillent et rechargent l'action cote serveur, verifient son
+  proprietaire et son statut, puis utilisent exclusivement les arguments
+  stockes ; le corps de confirmation ou d'annulation est ignore. Verification
+  lot 3 : 152 tests backend reussis.
+- [ ] Lot 4 non commence : aucun quota agent ni protection anti-injection
+  dediee. La gestion d'erreur des tools reste aussi a implementer.
+- [x] Lot 5 : page protegee `/agent` et entree `Assistant` dans la navigation.
+  `AgentChat.jsx` affiche le fil sous forme de bulles et les resultats d'outils
+  sous forme de resumes lisibles, sans JSON brut. La saisie est bloquee pendant
+  la generation. Les cartes d'action en attente envoient uniquement l'id aux
+  endpoints de confirmation ou d'annulation. L'id de conversation recente est
+  conserve cote navigateur et son historique, scope par utilisateur, est
+  recharge via `GET /api/agent/conversations/{id}/`. Verification lot 5 :
+  154 tests backend et 77 tests frontend (26 suites) reussis.
+- [x] Lot 6 : les `ActionEnAttente` encore en attente depuis plus de 24 heures
+  passent au statut `expiree` avec leur date de traitement. Comme pour les
+  journaux LLM, une purge probabiliste est declenchee par les requetes agent et
+  ses erreurs ne bloquent pas la requete. Les endpoints de confirmation et
+  d'annulation recontrolent aussi le delai sous verrou afin qu'une action
+  expiree ne puisse jamais etre executee. Verification lot 6 : 156 tests
+  backend reussis. La migration `api.0006` est appliquee sur la base locale.
+- [~] Verification globale : 157 tests backend et 77 tests frontend (26 suites)
+  reussis. Le parcours automatise couvre les deux tools de lecture, la creation
+  confirmee et l'annulation sans creation. Le test de falsification confirme
+  toujours que le backend ignore les arguments envoyes par le client. Aucun
+  changement de modele non migre n'est detecte et `api.0006` est appliquee sur
+  la base locale. L'ensemble des six lots ne peut pas etre declare termine tant
+  que le lot 4 reste absent.
+
 ### Configuration et production
 
 - [~] Configuration locale fonctionnelle avec PostgreSQL, CORS local et URL Axios
@@ -292,12 +390,19 @@ Routes API principales, toutes prefixees par `/api/` :
 - `/candidatures/`, `/candidatures/{id}/`
 - `POST /candidatures/import_url/`
 - `PATCH /candidatures/{id}/archiver/`
+- `GET /candidatures/cv_par_defaut/`
+- `POST /candidatures/{id}/preparer_email/`, `GET /candidatures/{id}/emails/`
+- `PATCH /candidatures/{id}/emails/{email_id}/`
+- `POST /candidatures/{id}/emails/{email_id}/annuler/`
+- `POST /candidatures/{id}/emails/{email_id}/preparer_envoi/` (`ready`, sans envoi)
 - `GET, POST /candidatures/{id}/actions/`
 - `GET, PUT, PATCH, DELETE /candidatures/{id}/actions/{action_id}/`
 - `/categories/`, `/categories/{id}/`
 - `/preferences/`, `/preferences/{id}/`
+- `POST /agent/chat/`, `GET /agent/conversations/{id}/`
+- `POST /agent/actions/{id}/confirmer/`, `POST /agent/actions/{id}/annuler/`
 
-Routes frontend protegees : `/candidatures` et `/candidatures/:id`.
+Routes frontend protegees : `/candidatures`, `/candidatures/:id` et `/agent`.
 
 ## 7. Verification attendue
 
