@@ -6,6 +6,7 @@ import CandidatureCard from '../components/Candidatures/CandidatureCard';
 import CandidatureForm from '../components/Candidatures/CandidatureForm';
 import CandidatureFiltres, { DEFAULT_FILTERS } from '../components/Candidatures/CandidatureFiltres';
 import CandidatureKanban from '../components/Candidatures/CandidatureKanban';
+import PreparationEmailsMasseDialog from '../components/Candidatures/PreparationEmailsMasseDialog';
 import { STATUTS } from '../components/Candidatures/options';
 import { candidaturesAPI } from '../services/api';
 import { extraireMessageErreur } from '../services/errors';
@@ -48,6 +49,9 @@ export default function Candidatures() {
   const [moveError, setMoveError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkPreparation, setBulkPreparation] = useState(null);
+  const [preparedEmails, setPreparedEmails] = useState([]);
   const analysisPending = useRef(false);
 
   const load = useCallback(async () => {
@@ -56,6 +60,7 @@ export default function Candidatures() {
     try {
       const response = await candidaturesAPI.getAll(new URLSearchParams(queryString));
       setCandidatures(response.data);
+      setSelectedIds(current => current.filter(id => response.data.some(item => item.id === id)));
       setKnownTags(current => [...new Set([...current, ...response.data.flatMap(item => item.tags || [])])].sort());
     } catch (error) {
       setLoadError(extraireMessageErreur(error, 'Impossible de charger les candidatures.'));
@@ -64,6 +69,7 @@ export default function Candidatures() {
   useEffect(() => { load(); }, [load]);
 
   const changeFilters = next => {
+    setSelectedIds([]);
     const params = new URLSearchParams();
     if (next.search.trim()) params.set('search', next.search.trim());
     for (const key of ['statut', 'type_poste', 'source_canal', 'tags']) {
@@ -117,6 +123,7 @@ export default function Candidatures() {
     try {
       await candidaturesAPI.delete(deletion.id);
       setCandidatures(current => current.filter(item => item.id !== deletion.id));
+      setSelectedIds(current => current.filter(id => id !== deletion.id));
       setDeletion(null);
     } catch (error) {
       setDeleteError(extraireMessageErreur(error, 'Impossible de supprimer la candidature.'));
@@ -163,6 +170,25 @@ export default function Candidatures() {
     }
   };
 
+  const toggleSelection = (candidature, selected) => {
+    setSelectedIds(current => selected
+      ? current.includes(candidature.id) ? current : [...current, candidature.id]
+      : current.filter(id => id !== candidature.id));
+  };
+
+  const openBulkPreparation = () => {
+    setPreparedEmails([]);
+    setBulkPreparation(candidatures.filter(item => selectedIds.includes(item.id)));
+  };
+
+  const bulkPreparationSucceeded = emails => {
+    setPreparedEmails(emails.map(email => ({
+      ...email, candidatureInfo: bulkPreparation.find(item => item.id === email.candidature),
+    })));
+    setBulkPreparation(null);
+    setSelectedIds([]);
+  };
+
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', minWidth: 0 }}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
@@ -198,6 +224,23 @@ export default function Candidatures() {
               </ToggleButtonGroup>
             </Stack>
             {moveError && <Alert severity="error" sx={{ mb: 2 }}>{moveError}</Alert>}
+            {viewMode === 'liste' && <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
+              <Button variant="outlined" onClick={openBulkPreparation} disabled={selectedIds.length === 0}>
+                Preparer les emails ({selectedIds.length})
+              </Button>
+              <Typography variant="body2" color="text.secondary">Selectionnez les candidatures a preparer.</Typography>
+            </Stack>}
+            {preparedEmails.length > 0 && <Box component="section" aria-label="Brouillons prepares" sx={{ mb: 3 }}>
+              <Alert severity="success" sx={{ mb: 1 }}>{preparedEmails.length} brouillons crees</Alert>
+              {preparedEmails.map(email => <Stack key={email.id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1} sx={{ py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography sx={{ flex: 1, overflowWrap: 'anywhere' }}>{email.candidatureInfo?.entreprise || email.candidatureInfo?.titre} — {email.recipient_email}</Typography>
+                <Typography variant="body2">Brouillon</Typography>
+                <Button component="a" href={`/candidatures/${email.candidature}?email_id=${email.id}`}
+                  target="_blank" rel="noopener noreferrer" aria-label={`Voir le brouillon de ${email.candidatureInfo?.entreprise || email.candidatureInfo?.titre}`}>
+                  Voir
+                </Button>
+              </Stack>)}
+            </Box>}
             {candidatures.length === 0 && viewMode === 'liste' && <Box sx={{ py: 6, textAlign: 'center' }}>
               <WorkOutline color="disabled" sx={{ fontSize: 40, mb: 1 }} />
               <Typography component="h2" variant="h6" color="text.secondary">Aucune candidature</Typography>
@@ -211,7 +254,7 @@ export default function Candidatures() {
                 <Typography component="h2" variant="h6" sx={{ mb: 1.5, fontSize: '1rem' }}>{label} ({items.length})</Typography>
                 <Grid container spacing={2}>
                   {items.map(item => <Grid key={item.id} size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
-                    <CandidatureCard candidature={item} disabled={analysing} onEdit={candidature => setEditor({ candidature })}
+                    <CandidatureCard candidature={item} disabled={analysing} selected={selectedIds.includes(item.id)} onSelect={toggleSelection} onEdit={candidature => setEditor({ candidature })}
                       onOpen={candidature => navigate(`/candidatures/${candidature.id}`)}
                       onDelete={candidature => { setDeleteError(''); setDeletion(candidature); }} />
                   </Grid>)}
@@ -221,6 +264,7 @@ export default function Candidatures() {
           </>}
       <CandidatureForm open={Boolean(editor)} candidature={editor?.candidature} message={editor?.message}
         onClose={() => setEditor(null)} onSubmit={save} />
+      {bulkPreparation && <PreparationEmailsMasseDialog candidatures={bulkPreparation} onClose={() => setBulkPreparation(null)} onSuccess={bulkPreparationSucceeded} />}
       <Dialog open={Boolean(deletion)} onClose={() => { if (!deleting) setDeletion(null); }} aria-labelledby="delete-candidature-title">
         <DialogTitle id="delete-candidature-title">Supprimer la candidature ?</DialogTitle>
         <DialogContent>

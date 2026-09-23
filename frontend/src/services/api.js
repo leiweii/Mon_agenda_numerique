@@ -81,6 +81,7 @@ export const candidaturesAPI = {
   },
   getEmails: (id) => api.get(`candidatures/${id}/emails/`),
   prepareEmail: (id, data) => api.post(`candidatures/${id}/preparer_email/`, data),
+  prepareEmails: (data) => api.post('candidatures/preparer_emails/', data),
   updateEmail: (candidatureId, emailId, data) => api.patch(`candidatures/${candidatureId}/emails/${emailId}/`, data),
   cancelEmail: (candidatureId, emailId) => api.post(`candidatures/${candidatureId}/emails/${emailId}/annuler/`),
   prepareEmailSend: (candidatureId, emailId, data) => api.post(`candidatures/${candidatureId}/emails/${emailId}/preparer_envoi/`, data),

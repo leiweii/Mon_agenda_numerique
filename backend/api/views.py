@@ -28,6 +28,8 @@ from .serializers import (
     EmailCandidatureSerializer,
     PreferenceUtilisateurSerializer,
     PreparationEmailCandidatureSerializer,
+    PreparationEmailMasseLigneSerializer,
+    PreparationEmailsMasseCommunSerializer,
     TacheSerializer,
 )
 from .llm_service import appeler_llm, construire_prompt, parser_reponse
@@ -296,6 +298,73 @@ class CandidatureViewSet(viewsets.ModelViewSet):
             body=contenu['body'],
         )
         return Response(EmailCandidatureSerializer(email).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def preparer_emails(self, request):
+        if not isinstance(request.data, dict):
+            return Response({'detail': 'Un objet JSON est requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        lignes = request.data.get('emails')
+        if not isinstance(lignes, list) or not lignes:
+            return Response({'detail': 'Selectionnez au moins une candidature.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        commun = PreparationEmailsMasseCommunSerializer(data=request.data)
+        if not commun.is_valid():
+            return Response({'common_errors': commun.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        erreurs = []
+        donnees = []
+        ids_vus = set()
+        for index, brute in enumerate(lignes):
+            candidature_id = brute.get('candidature_id') if isinstance(brute, dict) else None
+            if not isinstance(brute, dict):
+                erreurs.append({'index': index, 'candidature_id': None, 'errors': {'candidature_id': ['Une candidature est requise.']}})
+                continue
+            serializer = PreparationEmailMasseLigneSerializer(data={**brute, **commun.validated_data})
+            if not serializer.is_valid():
+                erreurs.append({'index': index, 'candidature_id': candidature_id, 'errors': serializer.errors})
+                continue
+            ligne = serializer.validated_data
+            candidature_id = ligne['candidature_id']
+            if candidature_id in ids_vus:
+                erreurs.append({'index': index, 'candidature_id': candidature_id, 'errors': {'candidature_id': ['Candidature selectionnee plusieurs fois.']}})
+                continue
+            ids_vus.add(candidature_id)
+            donnees.append((index, ligne))
+
+        with transaction.atomic():
+            accessibles = self.get_queryset().select_for_update().in_bulk(ids_vus)
+            for index, ligne in donnees:
+                candidature_id = ligne['candidature_id']
+                if candidature_id not in accessibles:
+                    erreurs.append({'index': index, 'candidature_id': candidature_id, 'errors': {'candidature_id': ['Candidature introuvable ou non autorisee.']}})
+            if erreurs:
+                return Response({'row_errors': sorted(erreurs, key=lambda erreur: erreur['index'])}, status=status.HTTP_400_BAD_REQUEST)
+
+            emails = []
+            for _index, ligne in donnees:
+                candidature = accessibles[ligne['candidature_id']]
+                contenu = preparer_contenu_email(
+                    entreprise=candidature.entreprise,
+                    nom_contact=ligne.get('nom_contact', ''),
+                    prenom_contact=ligne.get('prenom_contact', ''),
+                    civilite=ligne.get('civilite', ''),
+                    poste=candidature.titre,
+                    formation=ligne['formation'],
+                    portfolio_url=ligne['portfolio_url'],
+                    github_url=ligne['github_url'],
+                )
+                recipient_name = ' '.join(part for part in (
+                    ligne.get('prenom_contact', '').strip(),
+                    ligne.get('nom_contact', '').strip(),
+                ) if part)
+                emails.append(EmailCandidature.objects.create(
+                    candidature=candidature,
+                    recipient_email=ligne['recipient_email'],
+                    recipient_name=recipient_name,
+                    subject=contenu['subject'],
+                    body=contenu['body'],
+                ))
+        return Response({'emails': EmailCandidatureSerializer(emails, many=True).data}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'])
     def emails(self, request, pk=None):
