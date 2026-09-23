@@ -41,14 +41,14 @@ export default function EmailBrouillonDialog({ open, draft, cvName, busy = false
           <Box>
             <Typography variant="subtitle2">Pièce jointe prévue</Typography>
             <Typography color="text.secondary">{cvName || 'Aucun CV par défaut configuré'}</Typography>
-            <Typography variant="caption" color="text.secondary">« Envoyer » prépare l’envoi sans transmettre d’email.</Typography>
+            <Typography variant="caption" color="text.secondary">« Préparer l’envoi » ne transmet aucun email. Une confirmation distincte suivra.</Typography>
           </Box>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={() => onCancel(draft.id)} disabled={busy}>Annuler</Button>
         <Button onClick={() => onSave(draft.id, payload())} disabled={busy || !valid}>Enregistrer</Button>
-        <Button variant="contained" onClick={() => onSend(draft.id, payload())} disabled={busy || !valid || !cvName}>Envoyer</Button>
+        <Button variant="contained" onClick={() => onSend(draft.id, payload())} disabled={busy || !valid || !cvName}>Préparer l’envoi</Button>
       </DialogActions>
     </Dialog>
   );

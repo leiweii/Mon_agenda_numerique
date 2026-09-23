@@ -19,6 +19,7 @@ from api.models import CVUtilisateur, Candidature, EmailCandidature
 from .candidature_scraper import formulaire_vide, normaliser_url, scraper_candidature
 from .candidature_llm import extraire_candidature_llm
 from .email_candidature_service import preparer_contenu_email
+from .email_send_service import EmailSendError, confirmer_manuellement, envoyer_email, lire_cv_par_defaut, nouvelle_tentative
 from .serializers import ImportCandidatureSerializer
 from .serializers import (
     ActionCandidatureSerializer,
@@ -194,10 +195,40 @@ class CandidatureViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(utilisateur=self.request.user)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get', 'put'])
     def cv_par_defaut(self, request):
         cv = CVUtilisateur.objects.filter(utilisateur=request.user).first()
-        return Response({'filename': PurePosixPath(cv.fichier.name).name if cv else None})
+        if request.method == 'PUT':
+            fichier = request.FILES.get('fichier')
+            if fichier is None:
+                return Response({'detail': 'Selectionnez un fichier PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not fichier.name.lower().endswith('.pdf') or fichier.size > 5 * 1024 * 1024:
+                return Response({'detail': 'Le CV doit etre un PDF de 5 Mio maximum.'}, status=status.HTTP_400_BAD_REQUEST)
+            if fichier.read(5) != b'%PDF-':
+                return Response({'detail': 'Le contenu du fichier doit etre un PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+            fichier.seek(0)
+            if cv is None:
+                cv = CVUtilisateur(utilisateur=request.user)
+            old_name = cv.fichier.name
+            new_name = None
+            try:
+                cv.fichier.save(fichier.name, fichier, save=False)
+                new_name = cv.fichier.name
+                cv.save()
+            except Exception:
+                if new_name:
+                    cv.fichier.storage.delete(new_name)
+                raise
+            if old_name and old_name != new_name:
+                cv.fichier.storage.delete(old_name)
+        filename = PurePosixPath(cv.fichier.name).name if cv else None
+        fingerprint = None
+        if cv:
+            try:
+                _, filename, fingerprint = lire_cv_par_defaut(request.user)
+            except EmailSendError:
+                pass
+        return Response({'filename': filename, 'fingerprint': fingerprint})
 
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
@@ -307,6 +338,45 @@ class CandidatureViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             email = serializer.save(status=EmailCandidature.Status.READY)
         return Response(EmailCandidatureSerializer(email).data)
+
+    def _email_action_target(self, request, email_id):
+        candidature = self.get_object()
+        if request.data.get('confirmation') is not True:
+            return None, Response({'detail': 'Confirmation explicite requise.'}, status=status.HTTP_400_BAD_REQUEST)
+        return get_object_or_404(candidature.emails.all(), pk=email_id), None
+
+    @action(detail=True, methods=['post'], url_path=r'emails/(?P<email_id>[^/.]+)/envoyer')
+    def envoyer_email(self, request, pk=None, email_id=None):
+        email, error = self._email_action_target(request, email_id)
+        if error is not None:
+            return error
+        try:
+            updated, code = envoyer_email(email, request.user, request.data.get('cv_fingerprint'))
+        except EmailSendError as exc:
+            return Response({'detail': exc.detail}, status=exc.status_code)
+        return Response(EmailCandidatureSerializer(updated).data, status=code)
+
+    @action(detail=True, methods=['post'], url_path=r'emails/(?P<email_id>[^/.]+)/confirmer_manuellement')
+    def confirmer_email_manuellement(self, request, pk=None, email_id=None):
+        email, error = self._email_action_target(request, email_id)
+        if error is not None:
+            return error
+        try:
+            updated = confirmer_manuellement(email)
+        except EmailSendError as exc:
+            return Response({'detail': exc.detail}, status=exc.status_code)
+        return Response(EmailCandidatureSerializer(updated).data)
+
+    @action(detail=True, methods=['post'], url_path=r'emails/(?P<email_id>[^/.]+)/nouvelle_tentative')
+    def nouvelle_tentative_email(self, request, pk=None, email_id=None):
+        email, error = self._email_action_target(request, email_id)
+        if error is not None:
+            return error
+        try:
+            updated, created = nouvelle_tentative(email)
+        except EmailSendError as exc:
+            return Response({'detail': exc.detail}, status=exc.status_code)
+        return Response(EmailCandidatureSerializer(updated).data, status=201 if created else 200)
 
     @action(detail=True, methods=['get', 'post'], url_path='actions')
     def actions(self, request, pk=None):

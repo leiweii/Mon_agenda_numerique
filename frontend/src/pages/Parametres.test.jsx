@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Parametres from './Parametres';
-import { gmailAPI, preferencesAPI } from '../services/api';
+import { candidaturesAPI, gmailAPI, preferencesAPI } from '../services/api';
 
 const onThemeChange = jest.fn();
 
@@ -16,12 +16,14 @@ jest.mock('../services/api', () => ({
     update: jest.fn(),
   },
   gmailAPI: { getStatus: jest.fn(), verify: jest.fn(), connect: jest.fn() },
+  candidaturesAPI: { getDefaultCv: jest.fn(), replaceDefaultCv: jest.fn() },
 }));
 
 beforeEach(() => {
   jest.clearAllMocks();
   preferencesAPI.get.mockResolvedValue({ data: [] });
   gmailAPI.getStatus.mockResolvedValue({ data: { status: 'disconnected' } });
+  candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: null } });
   preferencesAPI.create.mockResolvedValue({
     data: {
       id: 7,

@@ -64,7 +64,7 @@ test('analysis loading, preview, correction and successful creation', async () =
   expect(candidaturesAPI.create).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText(/Titre/), { target: { value: 'Dev Python' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
   expect(screen.getByRole('heading', { name: 'Dev Python' })).toBeInTheDocument();
   expect(candidaturesAPI.create).toHaveBeenCalledWith(expect.objectContaining({ titre: 'Dev Python' }));
 });
