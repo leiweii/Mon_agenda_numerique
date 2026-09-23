@@ -297,9 +297,12 @@ avec limite connue ; `[ ]` absent.
   Si la reponse HTTP de l'envoi est perdue, le frontend relit le statut serveur
   et bloque tout nouvel envoi si cette verification echoue.
   Tests Gmail/HTTP entierement mocks : 226 tests backend et 111 tests frontend
-  (29 suites) reussis ; build frontend reussi. Dans le worktree cache `.codex`,
-  `npm test -- --watchAll=false` ne decouvre aucun test ; la suite a ete lancee
-  avec la configuration Jest de CRA et une regle de decouverte equivalente.
+  (29 suites) reussis ; build frontend reussi. Verification corrective avant
+  fusion : les 111 tests passent avec `npm test -- --watchAll=false` depuis le
+  worktree visible, sans reglage CI manuel. Le script npm lance CRA en serie et
+  en mode CI pour que PowerShell execute toute la suite meme si `npm.ps1` ne
+  transmet pas les options apres `--`. Les tests d'envoi attendent la fermeture
+  effective du dialogue MUI avant de chercher les actions de la page.
   Aucun envoi Gmail reel n'a ete
   effectue pour valider ce nouveau parcours. En mode Google Testing, le refresh
   token peut expirer apres sept jours et exiger une reconnexion.

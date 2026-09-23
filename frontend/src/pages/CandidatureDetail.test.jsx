@@ -259,9 +259,10 @@ test('a lost send response and failed status reload block another send', async (
   expect(await screen.findByText(/Issue de l’envoi inconnue/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Envoyer l’email Candidature Django' })).not.toBeInTheDocument();
   expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmer l’envoi Gmail', hidden: true })).not.toBeInTheDocument());
   fireEvent.click(await screen.findByRole('button', { name: 'Actualiser le statut' }));
   expect(await screen.findByText(/Résultat incertain : Gmail a peut-être envoyé ce message/)).toBeInTheDocument();
-});
+}, 10000);
 
 test('a 409 without serialized email reloads the current sending status', async () => {
   candidaturesAPI.getEmails
@@ -308,7 +309,10 @@ test('a server validation error before reservation keeps ready with its explanat
   fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
 
   expect(await screen.findByText('Adresse du destinataire invalide.')).toBeInTheDocument();
-  expect(await screen.findByRole('button', { name: 'Envoyer l’email Candidature Django' })).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmer l’envoi Gmail', hidden: true })).not.toBeInTheDocument());
+  fireEvent.click(await screen.findByRole('button', { name: 'Envoyer l’email Candidature Django' }));
+  expect(await screen.findByRole('dialog', { name: 'Confirmer l’envoi Gmail' })).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
 });
 
 test('uncertain sending offers manual confirmation and a new editable draft', async () => {
