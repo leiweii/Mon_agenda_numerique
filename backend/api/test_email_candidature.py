@@ -1,13 +1,14 @@
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.utils import timezone
 from unittest.mock import patch
 
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from .email_candidature_service import VARIABLES_TEMPLATE, preparer_contenu_email, remplacer_variables
-from .models import Candidature, CVUtilisateur, EmailCandidature
+from .models import ActionCandidature, Candidature, CVUtilisateur, EmailCandidature
 
 
 class EmailCandidatureModelTests(TestCase):
@@ -203,6 +204,52 @@ class EmailCandidaturePreparationEndpointTests(APITestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertFalse(EmailCandidature.objects.exists())
+
+    def test_detail_lists_multiple_emails_for_one_candidature_only(self):
+        initial = EmailCandidature.objects.create(
+            candidature=self.candidature, recipient_email='initial@example.com',
+            subject='Candidature initiale', body='Bonjour', status=EmailCandidature.Status.SENT,
+        )
+        relance = EmailCandidature.objects.create(
+            candidature=self.candidature, recipient_email='relance@example.com',
+            subject='Relance 1', body='Bonjour de nouveau',
+        )
+        EmailCandidature.objects.create(
+            candidature=self.other_candidature, recipient_email='prive@example.com',
+            subject='Email prive', body='Prive',
+        )
+
+        response = self.client.get(f'/api/candidatures/{self.candidature.id}/emails/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item['id'] for item in response.data}, {initial.id, relance.id})
+        self.assertEqual({item['subject'] for item in response.data}, {'Candidature initiale', 'Relance 1'})
+
+    def test_deleting_parent_cascades_to_all_emails_and_history_actions(self):
+        initial = EmailCandidature.objects.create(
+            candidature=self.candidature, recipient_email='initial@example.com',
+            subject='Candidature initiale', body='Bonjour', status=EmailCandidature.Status.SENT,
+        )
+        relance = EmailCandidature.objects.create(
+            candidature=self.candidature, recipient_email='relance@example.com',
+            subject='Relance 1', body='Bonjour de nouveau',
+        )
+        action = ActionCandidature.objects.create(
+            candidature=self.candidature, type_action=ActionCandidature.TypeAction.CANDIDATURE_ENVOYEE,
+            date_action=timezone.now(),
+            commentaire=f'Email #{initial.id} envoye via Gmail.',
+        )
+        other_email = EmailCandidature.objects.create(
+            candidature=self.other_candidature, recipient_email='prive@example.com',
+            subject='Email prive', body='Prive',
+        )
+
+        response = self.client.delete(f'/api/candidatures/{self.candidature.id}/')
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(EmailCandidature.objects.filter(pk__in=[initial.id, relance.id]).exists())
+        self.assertFalse(ActionCandidature.objects.filter(pk=action.id).exists())
+        self.assertTrue(EmailCandidature.objects.filter(pk=other_email.id).exists())
 
     def test_prepares_draft_when_candidature_title_uses_model_max_length(self):
         self.candidature.titre = 'P' * 255

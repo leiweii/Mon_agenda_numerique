@@ -517,7 +517,7 @@ export default function CandidatureDetail() {
       </Box>
 
       <Divider sx={{ mb: 3 }} />
-      <ActionTimeline actions={actions} disabled={busy} onAdd={() => setActionEditor(null)}
+      <ActionTimeline actions={actions} emails={emails} disabled={busy} onAdd={() => setActionEditor(null)}
         onEdit={setActionEditor} onDelete={deleteAction} />
 
       <CandidatureForm open={editorOpen} candidature={candidature} onClose={() => setEditorOpen(false)} onSubmit={saveGeneral} />

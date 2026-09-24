@@ -169,6 +169,59 @@ class EmailSendEndpointTests(APITestCase):
             format='json',
         )
 
+    @patch('api.email_send_service.envoyer_message_gmail', return_value='gmail-parcours-1')
+    def test_full_draft_edit_confirm_send_and_history_with_mock_gmail(self, gmail_send):
+        base_url = f'/api/candidatures/{self.candidature.id}/'
+        prepared = self.client.post(f'{base_url}preparer_email/', {
+            'recipient_email': 'contact@example.com',
+            'formation': 'Licence professionnelle',
+            'portfolio_url': 'https://portfolio.example.com',
+            'github_url': 'https://github.com/example',
+        }, format='json')
+        self.assertEqual(prepared.status_code, 201)
+        email_id = prepared.data['id']
+        self.assertEqual(prepared.data['status'], 'draft')
+        gmail_send.assert_not_called()
+
+        email_url = f'{base_url}emails/{email_id}/'
+        edited = self.client.patch(email_url, {
+            'recipient_email': 'recrutement@example.com',
+            'subject': 'Candidature modifiee',
+            'body': 'Bonjour, voici ma candidature modifiee.',
+        }, format='json')
+        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.data['status'], 'draft')
+        self.assertEqual(edited.data['subject'], 'Candidature modifiee')
+        gmail_send.assert_not_called()
+
+        ready = self.client.post(f'{email_url}preparer_envoi/', {
+            'recipient_email': 'recrutement@example.com',
+            'subject': 'Candidature modifiee',
+            'body': 'Bonjour, voici ma candidature modifiee.',
+        }, format='json')
+        self.assertEqual(ready.status_code, 200)
+        self.assertEqual(ready.data['status'], 'ready')
+        gmail_send.assert_not_called()
+
+        sent = self.client.post(f'{email_url}envoyer/', {
+            'confirmation': True,
+            'cv_fingerprint': self.cv_fingerprint,
+        }, format='json')
+        self.assertEqual(sent.status_code, 200)
+        self.assertEqual(sent.data['status'], 'sent')
+        self.assertEqual(sent.data['gmail_message_id'], 'gmail-parcours-1')
+        gmail_send.assert_called_once()
+        self.assertEqual(gmail_send.call_args.kwargs['recipient'], 'recrutement@example.com')
+        self.assertEqual(gmail_send.call_args.kwargs['subject'], 'Candidature modifiee')
+        self.assertEqual(gmail_send.call_args.kwargs['body'], 'Bonjour, voici ma candidature modifiee.')
+
+        emails = self.client.get(f'{base_url}emails/')
+        actions = self.client.get(f'{base_url}actions/')
+        self.assertEqual(emails.status_code, 200)
+        self.assertEqual(actions.status_code, 200)
+        self.assertTrue(any(item['id'] == email_id and item['status'] == 'sent' for item in emails.data))
+        self.assertTrue(any(item['type_action'] == 'envoyee' for item in actions.data))
+
     @patch('api.email_send_service.envoyer_message_gmail', return_value='gmail-123')
     def test_success_sends_once_and_creates_history(self, gmail_send):
         response = self.post()

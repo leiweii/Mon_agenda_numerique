@@ -33,6 +33,11 @@ Stack actuelle :
   HTTP securise et extraction HTML des offres d'emploi.
 - `backend/api/candidature_llm.py` : repli Anthropic valide pour les imports
   d'offres que le scraper ne peut pas extraire.
+- `backend/api/email_candidature_service.py` : template des emails et
+  remplacement des variables avant la creation des brouillons.
+- `backend/api/email_send_service.py` et `gmail_send_service.py` : validation,
+  reservation idempotente, envoi Gmail et creation de l'action d'historique.
+- `backend/api/gmail_oauth_service.py` : connexion OAuth et tokens Gmail chiffres.
 - `backend/api/llm_service.py` : prompt, appel Anthropic, parsing et validation de reponse.
 - `backend/api/llm_performance.py` : cache, quota, journalisation et purge LLM.
 - `backend/api/agent_service.py` : boucle d'orchestration bornee, appel LLM,
@@ -50,9 +55,10 @@ Stack actuelle :
 - `frontend/src/components/Categories/` : CRUD des categories.
 - `frontend/src/components/Statistiques/` : dashboard et graphique de priorites.
 - `frontend/src/components/Candidatures/` : formulaire, cartes, filtres,
-  timeline d'actions et vue Kanban.
+  timeline des actions et emails, brouillon editable, CV par defaut,
+  connexion Gmail et vue Kanban.
 - `frontend/src/pages/Candidatures.jsx` et `CandidatureDetail.jsx` : liste,
-  import, export et suivi detaille des candidatures.
+  import, export, preparation et suivi detaille des candidatures et emails.
 - `frontend/src/components/RecommandationsIA.jsx` : carte de recommandation IA.
 - `frontend/src/components/Agent/AgentChat.jsx` : fil de conversation, reprise
   de l'historique et confirmation ou annulation des actions proposees.
@@ -351,6 +357,33 @@ avec limite connue ; `[ ]` absent.
   (30 suites) reussis. Une passe frontend intermediaire a eu cinq expirations
   intermittentes a 5 s dans `CandidatureDetail.test.jsx`, non modifie ; cette
   suite a ensuite passe seule (26/26), puis la suite complete a passe (118/118).
+- [x] Lot 7 : `ActionTimeline.jsx` integre les emails de la candidature a
+  l'historique chronologique des actions. Chaque email initial ou de relance
+  a son evenement de preparation ; la derniere mise a jour est aussi visible
+  si elle survient plus d'une seconde apres la creation, quel que soit le
+  statut. Cette date peut refleter un changement d'etat (dont l'envoi), pas
+  une edition du texte.
+  Les actions d'envoi existantes restent dans la timeline et gardent leurs
+  commandes ; les evenements email sont en lecture seule. Le statut et les
+  liens entre tentatives restent visibles dans la section emails de la page.
+  L'historique ne reconstitue pas les editions passees apres envoi, faute de
+  journal d'audit dedie. La relation `EmailCandidature.candidature` est en `CASCADE` :
+  supprimer une candidature supprime tous ses emails et actions d'historique ;
+  les autres utilisateurs restent intacts. Aucune nouvelle migration.
+  Verification de bout en bout dans le worktree isole : preparation d'un
+  brouillon, edition, passage a `ready`, confirmation explicite, reponse Gmail
+  simulee avec un identifiant de message, puis consultation de l'email `sent`
+  et de l'action d'historique dans les API. La reception dans une vraie boite
+  Gmail n'a pas ete verifiee pendant cette passe : aucun test n'envoie de vrai
+  message. Les appels Gmail sont mocks et Django utilise sa boite email en
+  memoire pendant les tests. Suite complete : 242 tests backend et 121 tests
+  frontend (30 suites) reussis ; `api.0001` a `0009` appliquees,
+  `makemigrations --check --dry-run` sans changement. Une premiere passe
+  frontend lancee en parallele du backend a eu un timeout de 5 s dans
+  `archives and deletes from the header after confirmation` (120/121) ; le
+  fichier seul (27/27), puis la suite complete seule (121/121), ont passe.
+  La cause exacte du timeout intermittent n'est pas etablie. Build frontend
+  reussi avec l'avertissement de hook preexistant dans `TacheListe.jsx`.
 
 ### Preferences et interface
 
