@@ -104,9 +104,21 @@ class EmailCandidature(models.Model):
     sent_at = models.DateTimeField(null=True, blank=True)
     error_message = models.TextField(blank=True)
     gmail_message_id = models.CharField(max_length=255, blank=True)
+    manual_confirmation_at = models.DateTimeField(null=True, blank=True)
+    retry_of = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='retry_attempts',
+    )
 
     class Meta:
         ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['retry_of'],
+                condition=models.Q(retry_of__isnull=False),
+                name='unique_email_retry_successor',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.subject} - {self.recipient_email}'

@@ -47,7 +47,7 @@ test('prepares send action with edited values and does not send itself', () => {
   render(<EmailBrouillonDialog open draft={draft} cvName="CV_backend.pdf" onSave={jest.fn()} onCancel={jest.fn()} onSend={onSend} />);
 
   fireEvent.change(screen.getByRole('textbox', { name: 'Objet' }), { target: { value: 'Alternance React' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Préparer l’envoi' }));
 
   expect(onSend).toHaveBeenCalledWith(12, {
     recipient_email: 'recrutement@example.com',

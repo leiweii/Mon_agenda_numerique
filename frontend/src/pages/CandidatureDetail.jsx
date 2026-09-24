@@ -28,6 +28,30 @@ function Info({ label, children }) {
   return <Box><Typography variant="caption" color="text.secondary">{label}</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{children || 'Non renseigne'}</Typography></Box>;
 }
 
+function reconciliationAvailable(email, now) {
+  return email.status === 'sending' && (
+    Boolean(email.error_message) || new Date(email.updated_at).getTime() <= now - 5 * 60 * 1000
+  );
+}
+
+function hasMultipleConfirmedEmails(emails) {
+  const byId = new Map(emails.map(email => [email.id, email]));
+  const sentCounts = new Map();
+  for (const email of emails) {
+    if (email.status !== 'sent') continue;
+    let root = email;
+    const seen = new Set();
+    while (root.retry_of && byId.has(root.retry_of) && !seen.has(root.id)) {
+      seen.add(root.id);
+      root = byId.get(root.retry_of);
+    }
+    const count = (sentCounts.get(root.id) || 0) + 1;
+    if (count >= 2) return true;
+    sentCounts.set(root.id, count);
+  }
+  return false;
+}
+
 export default function CandidatureDetail() {
   const { id } = useParams();
   const candidatureId = Number(id);
@@ -53,6 +77,16 @@ export default function CandidatureDetail() {
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [emailNotice, setEmailNotice] = useState('');
+  const [sendTarget, setSendTarget] = useState(null);
+  const [sendUnknownId, setSendUnknownId] = useState(null);
+  const [retryTarget, setRetryTarget] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!emails.some(email => email.status === 'sending' && !email.error_message)) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [emails]);
 
   const applyCandidature = data => {
     setCandidature(data);
@@ -179,6 +213,156 @@ export default function CandidatureDetail() {
     }
   };
 
+  const replaceEmail = updated => {
+    setEmails(current => current.map(item => item.id === updated.id ? updated : item));
+  };
+
+  const refreshEmailHistory = async () => {
+    try {
+      const response = await candidatureActionsAPI.getAll(candidatureId);
+      setActions(response.data);
+    } catch (_failure) {
+      setEmailError('Le statut de l’email est enregistré, mais l’historique est momentanément indisponible. Rechargez la page.');
+    }
+  };
+
+  const openSendConfirmation = async email => {
+    if (emailBusy || sendUnknownId === email.id) return;
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.getDefaultCv();
+      const { filename, fingerprint } = response.data;
+      setCvName(filename || '');
+      if (!filename || !fingerprint) {
+        setEmailError('Configurez un CV PDF accessible avant de confirmer l’envoi.');
+        return;
+      }
+      setSendTarget({ ...email, confirmedCvName: filename, cvFingerprint: fingerprint });
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible de vérifier le CV avant l’envoi.'));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const reconcileSendStatus = async (emailId, { allowReady = false, definitePreSend = false } = {}) => {
+    try {
+      const response = await candidaturesAPI.getEmails(candidatureId);
+      setEmails(response.data);
+      const current = response.data.find(email => email.id === emailId);
+      if (current?.status === 'sent') {
+        setSendUnknownId(null);
+        setEmailNotice('Email envoyé via Gmail.');
+        await refreshEmailHistory();
+      } else if (current?.status === 'sending') {
+        setSendUnknownId(null);
+        setEmailNotice('Résultat incertain : vérifiez le dossier Envoyés avant toute nouvelle tentative.');
+      } else if (current?.status === 'failed') {
+        setSendUnknownId(null);
+        setEmailError('L’envoi a échoué. Vous pouvez créer une nouvelle tentative.');
+      } else if (current?.status === 'ready' && (allowReady || definitePreSend)) {
+        setSendUnknownId(null);
+        if (allowReady) setEmailNotice('Aucun envoi confirmé : relisez le brouillon avant une nouvelle confirmation.');
+      } else {
+        setSendUnknownId(emailId);
+      }
+      return current;
+    } catch (_failure) {
+      setSendUnknownId(emailId);
+      return null;
+    }
+  };
+
+  const refreshUnknownSend = async emailId => {
+    if (emailBusy) return;
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      await reconcileSendStatus(emailId, { allowReady: true });
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const sendReadyEmail = async () => {
+    if (!sendTarget || emailBusy) return;
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.sendEmail(candidatureId, sendTarget.id, sendTarget.cvFingerprint);
+      replaceEmail(response.data);
+      setEmailNotice(response.data.status === 'sent'
+        ? 'Email envoyé via Gmail.'
+        : 'Résultat incertain : vérifiez le dossier Envoyés avant toute nouvelle tentative.');
+      setSendTarget(null);
+      await refreshEmailHistory();
+    } catch (failure) {
+      const emailId = sendTarget.id;
+      setSendTarget(null);
+      if (failure.response?.data?.id) {
+        replaceEmail(failure.response.data);
+        setEmailError(extraireMessageErreur(failure, 'L’envoi a échoué. Vous pouvez créer une nouvelle tentative.'));
+      } else {
+        const detail = failure.response?.data?.detail || '';
+        const cvChanged = failure.response?.status === 409 && detail.includes('Le CV a change');
+        const definitePreSend = failure.response?.status === 400 || cvChanged;
+        if (cvChanged) {
+          try {
+            const cvResponse = await candidaturesAPI.getDefaultCv();
+            setCvName(cvResponse.data.filename || '');
+          } catch (_cvFailure) {
+            // La prochaine ouverture de confirmation reverifiera le CV.
+          }
+        }
+        const current = await reconcileSendStatus(emailId, { definitePreSend });
+        if (definitePreSend && current?.status === 'ready') {
+          setEmailError(detail || 'La validation avant l’envoi a échoué. Vérifiez le brouillon.');
+        }
+      }
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const confirmManual = async email => {
+    if (emailBusy) return;
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.confirmEmailManually(candidatureId, email.id);
+      replaceEmail(response.data);
+      setEmailNotice('Envoi confirmé manuellement après vérification de Gmail.');
+      await refreshEmailHistory();
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible de confirmer cet envoi.'));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const createRetry = async () => {
+    if (!retryTarget || emailBusy) return;
+    setEmailBusy(true);
+    setEmailError('');
+    try {
+      const response = await candidaturesAPI.createEmailRetry(candidatureId, retryTarget.id);
+      setEmails(current => current.some(item => item.id === response.data.id)
+        ? current.map(item => item.id === response.data.id ? response.data : item)
+        : [response.data, ...current]);
+      setRetryTarget(null);
+      setEmailDraft(response.data);
+      setEmailNotice('Nouvelle tentative créée en brouillon : relisez et préparez-la avant de confirmer l’envoi.');
+    } catch (failure) {
+      setEmailError(extraireMessageErreur(failure, 'Impossible de créer une nouvelle tentative.'));
+      setRetryTarget(null);
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const twoConfirmedAttempts = hasMultipleConfirmedEmails(emails);
+
   const confirm = async () => {
     setBusy(true);
     setError('');
@@ -279,13 +463,43 @@ export default function CandidatureDetail() {
         </Stack>
         <Typography color="text.secondary" sx={{ mt: 1 }}>CV par défaut : {cvName || 'Aucun CV configuré'}</Typography>
         {emailNotice && <Alert severity="info" sx={{ mt: 2 }}>{emailNotice}</Alert>}
+        {emailError && !preparationOpen && !emailDraft && <Alert severity="error" sx={{ mt: 2 }}>{emailError}</Alert>}
+        {twoConfirmedAttempts && <Alert severity="warning" sx={{ mt: 2 }}>Deux envois confirmés pour cette chaîne de tentatives.</Alert>}
         {emails.length === 0 && <Typography color="text.secondary" sx={{ mt: 2 }}>Aucun brouillon préparé.</Typography>}
         <Stack spacing={1} sx={{ mt: 2 }}>
           {emails.map(email => (
-            <Stack key={email.id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1}>
-              <Typography sx={{ overflowWrap: 'anywhere' }}>{email.subject} — {email.recipient_email}</Typography>
-              <Chip size="small" label={{ draft: 'Brouillon', ready: 'Prêt à envoyer', cancelled: 'Annulé', sent: 'Envoyé', failed: 'Échec', sending: 'En cours' }[email.status] || email.status} />
-              {email.status === 'draft' && <Button onClick={() => { setEmailError(''); setEmailDraft(email); }} disabled={emailBusy} aria-label={`Voir le brouillon ${email.subject}`}>Voir</Button>}
+            <Stack key={email.id} spacing={1} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1}>
+                <Typography sx={{ overflowWrap: 'anywhere' }}>{email.subject} — {email.recipient_email}</Typography>
+                <Chip size="small" label={{ draft: 'Brouillon', ready: 'Prêt à envoyer', cancelled: 'Annulé', sent: 'Envoyé', failed: 'Échec', sending: 'En cours' }[email.status] || email.status} />
+                {email.status === 'draft' && <Button onClick={() => { setEmailError(''); setEmailDraft(email); }} disabled={emailBusy} aria-label={`Voir le brouillon ${email.subject}`}>Voir</Button>}
+                {email.status === 'ready' && sendUnknownId !== email.id && <Button onClick={() => openSendConfirmation(email)} disabled={emailBusy} aria-label={`Envoyer l’email ${email.subject}`}>Envoyer via Gmail</Button>}
+              </Stack>
+              {sendUnknownId === email.id && <Alert severity="warning" action={<Button onClick={() => refreshUnknownSend(email.id)} disabled={emailBusy}>Actualiser le statut</Button>}>Issue de l’envoi inconnue. Aucun renvoi automatique ; actualisez le statut avant toute nouvelle confirmation.</Alert>}
+              {email.retry_of && <Typography variant="caption">Nouvelle tentative de l’email #{email.retry_of}</Typography>}
+              {emails.some(next => next.retry_of === email.id) && (
+                <Typography variant="caption">Tentative suivante : email #{emails.find(next => next.retry_of === email.id).id}</Typography>
+              )}
+              {email.status === 'sending' && (reconciliationAvailable(email, now) ? (
+                <>
+                  <Alert severity="warning">Résultat incertain : Gmail a peut-être envoyé ce message. Vérifiez le dossier Envoyés (destinataire, objet et date). Aucun renvoi automatique n’aura lieu.</Alert>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button onClick={() => confirmManual(email)} disabled={emailBusy}>J’ai vérifié : email envoyé</Button>
+                    {!emails.some(next => next.retry_of === email.id) && <Button onClick={() => setRetryTarget(email)} disabled={emailBusy} aria-label={`Créer une nouvelle tentative pour ${email.subject}`}>Créer une nouvelle tentative</Button>}
+                  </Stack>
+                </>
+              ) : <Typography>Envoi en cours</Typography>)}
+              {email.status === 'failed' && (
+                <>
+                  <Alert severity="error">{email.error_message === 'reconnect_required'
+                    ? 'Reconnectez votre compte Gmail avant une nouvelle tentative.'
+                    : 'Échec d’envoi. Vérifiez la connexion Gmail ou créez une nouvelle tentative.'}</Alert>
+                  {!emails.some(next => next.retry_of === email.id) && <Button onClick={() => setRetryTarget(email)} disabled={emailBusy} aria-label={`Créer une nouvelle tentative pour ${email.subject}`} sx={{ alignSelf: 'flex-start' }}>Créer une nouvelle tentative</Button>}
+                </>
+              )}
+              {email.status === 'cancelled' && email.retry_of && !emails.some(next => next.retry_of === email.id) && (
+                <Button onClick={() => setRetryTarget(email)} disabled={emailBusy} aria-label={`Relancer la tentative annulée #${email.id}`} sx={{ alignSelf: 'flex-start' }}>Créer une nouvelle tentative</Button>
+              )}
             </Stack>
           ))}
         </Stack>
@@ -317,6 +531,31 @@ export default function CandidatureDetail() {
         </DialogActions>
       </Dialog>
       <EmailBrouillonDialog open={Boolean(emailDraft)} draft={emailDraft} cvName={cvName} busy={emailBusy} error={emailError} onSave={saveEmail} onCancel={cancelEmail} onSend={prepareSend} />
+      <Dialog open={Boolean(sendTarget)} onClose={() => { if (!emailBusy) setSendTarget(null); }} aria-labelledby="confirm-email-send-title" fullWidth maxWidth="sm">
+        <DialogTitle id="confirm-email-send-title">Confirmer l’envoi Gmail</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            <Typography>Un email réel sera envoyé à ce destinataire avec ce CV.</Typography>
+            <Typography>{sendTarget?.recipient_email}</Typography>
+            <Typography>{sendTarget?.subject}</Typography>
+            <Typography>{sendTarget?.confirmedCvName || 'Aucun CV configuré'}</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSendTarget(null)} disabled={emailBusy}>Annuler</Button>
+          <Button variant="contained" onClick={sendReadyEmail} disabled={emailBusy || !sendTarget?.cvFingerprint}>
+            {emailBusy ? 'Envoi...' : 'Confirmer l’envoi'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={Boolean(retryTarget)} onClose={() => { if (!emailBusy) setRetryTarget(null); }} aria-labelledby="retry-email-title" fullWidth maxWidth="sm">
+        <DialogTitle id="retry-email-title">Risque de double envoi</DialogTitle>
+        <DialogContent><Typography>Le premier email a peut-être été envoyé. Vérifiez Gmail avant de créer un nouveau brouillon ; celui-ci ne sera pas envoyé automatiquement.</Typography></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRetryTarget(null)} disabled={emailBusy}>Annuler</Button>
+          <Button variant="contained" onClick={createRetry} disabled={emailBusy}>{emailBusy ? 'Création...' : 'Créer le brouillon'}</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={Boolean(confirmation)} onClose={() => { if (!busy) setConfirmation(''); }}>
         <DialogTitle>{confirmation === 'archive' ? 'Archiver la candidature ?' : 'Supprimer la candidature ?'}</DialogTitle>
         <DialogContent><Typography>{confirmation === 'archive' ? 'Elle ne figurera plus dans la liste active.' : 'Cette suppression est definitive et effacera son historique.'}</Typography></DialogContent>

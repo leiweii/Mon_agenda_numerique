@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import Parametres from './Parametres';
-import { gmailAPI, preferencesAPI } from '../services/api';
+import { candidaturesAPI, gmailAPI, preferencesAPI } from '../services/api';
 
 jest.mock('@mui/material', () => ({
   ...jest.requireActual('@mui/material'),
@@ -15,11 +15,13 @@ jest.mock('../context/AuthContext', () => ({
 jest.mock('../services/api', () => ({
   preferencesAPI: { get: jest.fn() },
   gmailAPI: { getStatus: jest.fn(), verify: jest.fn(), connect: jest.fn() },
+  candidaturesAPI: { getDefaultCv: jest.fn(), replaceDefaultCv: jest.fn() },
 }));
 
 test('stacks settings on mobile and gives productive hours enough space from the small breakpoint', async () => {
   preferencesAPI.get.mockResolvedValue({ data: [] });
   gmailAPI.getStatus.mockResolvedValue({ data: { status: 'disconnected' } });
+  candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: null } });
   const { container } = render(<Parametres onThemeChange={jest.fn()} />);
 
   await waitFor(() => expect(preferencesAPI.get).toHaveBeenCalledTimes(1));

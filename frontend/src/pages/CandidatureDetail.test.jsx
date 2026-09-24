@@ -14,6 +14,7 @@ jest.mock('../services/api', () => ({
     getById: jest.fn(), update: jest.fn(), patch: jest.fn(), archive: jest.fn(), delete: jest.fn(),
     getDefaultCv: jest.fn(), getEmails: jest.fn(), prepareEmail: jest.fn(),
     updateEmail: jest.fn(), cancelEmail: jest.fn(), prepareEmailSend: jest.fn(),
+    sendEmail: jest.fn(), confirmEmailManually: jest.fn(), createEmailRetry: jest.fn(),
   },
   candidatureActionsAPI: {
     getAll: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(),
@@ -40,9 +41,14 @@ beforeEach(() => {
   jest.resetAllMocks();
   candidaturesAPI.getById.mockResolvedValue({ data: candidature });
   candidatureActionsAPI.getAll.mockResolvedValue({ data: [existingAction] });
-  candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: 'CV_backend.pdf' } });
+  candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: 'CV_backend.pdf', fingerprint: 'cv-original' } });
   candidaturesAPI.getEmails.mockResolvedValue({ data: [] });
 });
+
+async function openSendDialog() {
+  fireEvent.click(screen.getByRole('button', { name: 'Envoyer l’email Candidature Django' }));
+  return screen.findByRole('dialog', { name: 'Confirmer l’envoi Gmail' });
+}
 
 test('renders general information and adds an action to the timeline', async () => {
   const created = {
@@ -149,4 +155,316 @@ test('annuls an existing draft and leaves it visible with cancelled status', asy
 
   await waitFor(() => expect(candidaturesAPI.cancelEmail).toHaveBeenCalledWith(7, 19));
   expect(await screen.findByText('Annulé')).toBeInTheDocument();
+});
+
+const readyEmail = {
+  id: 25, candidature: 7, recipient_email: 'jobs@example.com',
+  subject: 'Candidature Django', body: 'Bonjour,', status: 'ready',
+  created_at: '2026-09-23T09:00:00Z', updated_at: '2026-09-23T09:00:00Z', retry_of: null,
+};
+
+test('shows separate confirmation for a ready email and cancellation does not send', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  const dialog = await openSendDialog();
+  expect(within(dialog).getByText('jobs@example.com')).toBeInTheDocument();
+  expect(within(dialog).getByText('Candidature Django')).toBeInTheDocument();
+  expect(within(dialog).getByText('CV_backend.pdf')).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Annuler' }));
+
+  expect(candidaturesAPI.sendEmail).not.toHaveBeenCalled();
+});
+
+test('confirms actual send once and refreshes the timeline', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  let resolveSend;
+  candidaturesAPI.sendEmail.mockReturnValue(new Promise(resolve => { resolveSend = resolve; }));
+  candidatureActionsAPI.getAll
+    .mockResolvedValueOnce({ data: [existingAction] })
+    .mockResolvedValueOnce({ data: [existingAction, { ...existingAction, id: 40, commentaire: 'Email #25 envoye via Gmail.' }] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+  expect(screen.getByRole('button', { name: 'Envoi...' })).toBeDisabled();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+
+  resolveSend({ data: { ...readyEmail, status: 'sent', gmail_message_id: 'gmail-25' } });
+  expect(await screen.findByText('Email #25 envoye via Gmail.')).toBeInTheDocument();
+  expect(screen.getByText('Envoyé')).toBeInTheDocument();
+});
+
+test('refreshes the CV before confirmation and sends its confirmed fingerprint', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.getDefaultCv
+    .mockResolvedValueOnce({ data: { filename: 'ancien.pdf', fingerprint: 'cv-old' } })
+    .mockResolvedValueOnce({ data: { filename: 'nouveau.pdf', fingerprint: 'cv-new' } });
+  candidaturesAPI.sendEmail.mockResolvedValue({ data: { ...readyEmail, status: 'sent' } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  const dialog = await openSendDialog();
+  expect(within(dialog).getByText('nouveau.pdf')).toBeInTheDocument();
+  expect(within(dialog).queryByText('ancien.pdf')).not.toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  await waitFor(() => expect(candidaturesAPI.sendEmail).toHaveBeenCalledWith(7, 25, 'cv-new'));
+});
+
+test('a lost send response reloads sending and never offers a second immediate send', async () => {
+  candidaturesAPI.getEmails
+    .mockResolvedValueOnce({ data: [readyEmail] })
+    .mockResolvedValueOnce({ data: [{ ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' }] });
+  candidaturesAPI.sendEmail.mockRejectedValue(new Error('network response lost'));
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText(/Résultat incertain : Gmail a peut-être envoyé ce message/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Envoyer l’email Candidature Django' })).not.toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+});
+
+test('a lost send response can reveal an already sent email and refresh history', async () => {
+  candidaturesAPI.getEmails
+    .mockResolvedValueOnce({ data: [readyEmail] })
+    .mockResolvedValueOnce({ data: [{ ...readyEmail, status: 'sent', gmail_message_id: 'gmail-25' }] });
+  candidaturesAPI.sendEmail.mockRejectedValue(new Error('network response lost'));
+  candidatureActionsAPI.getAll
+    .mockResolvedValueOnce({ data: [existingAction] })
+    .mockResolvedValueOnce({ data: [existingAction, { ...existingAction, id: 40, commentaire: 'Email #25 envoye via Gmail.' }] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText('Email #25 envoye via Gmail.')).toBeInTheDocument();
+  expect(screen.getByText('Envoyé')).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+});
+
+test('a lost send response and failed status reload block another send', async () => {
+  candidaturesAPI.getEmails
+    .mockResolvedValueOnce({ data: [readyEmail] })
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ data: [{ ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' }] });
+  candidaturesAPI.sendEmail.mockRejectedValue(new Error('network response lost'));
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText(/Issue de l’envoi inconnue/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Envoyer l’email Candidature Django' })).not.toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmer l’envoi Gmail', hidden: true })).not.toBeInTheDocument());
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualiser le statut' }));
+  expect(await screen.findByText(/Résultat incertain : Gmail a peut-être envoyé ce message/)).toBeInTheDocument();
+}, 10000);
+
+test('a 409 without serialized email reloads the current sending status', async () => {
+  candidaturesAPI.getEmails
+    .mockResolvedValueOnce({ data: [readyEmail] })
+    .mockResolvedValueOnce({ data: [{ ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' }] });
+  candidaturesAPI.sendEmail.mockRejectedValue({ response: { status: 409, data: { detail: 'Deja en cours.' } } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText(/Résultat incertain : Gmail a peut-être envoyé ce message/)).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+});
+
+test('a CV replacement during confirmation requires a new confirmation', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.getDefaultCv
+    .mockResolvedValueOnce({ data: { filename: 'ancien.pdf', fingerprint: 'cv-old' } })
+    .mockResolvedValueOnce({ data: { filename: 'ancien.pdf', fingerprint: 'cv-old' } })
+    .mockResolvedValueOnce({ data: { filename: 'nouveau.pdf', fingerprint: 'cv-new' } });
+  candidaturesAPI.sendEmail.mockRejectedValue({ response: { status: 409, data: {
+    detail: 'Le CV a change depuis votre confirmation. Verifiez-le avant l’envoi.',
+  } } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText(/Le CV a change depuis votre confirmation/)).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledWith(7, 25, 'cv-old');
+  expect(screen.getByText('Prêt à envoyer')).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+});
+
+test('a server validation error before reservation keeps ready with its explanation', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.sendEmail.mockRejectedValue({ response: { status: 400, data: {
+    detail: 'Adresse du destinataire invalide.',
+  } } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText('Adresse du destinataire invalide.')).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmer l’envoi Gmail', hidden: true })).not.toBeInTheDocument());
+  fireEvent.click(await screen.findByRole('button', { name: 'Envoyer l’email Candidature Django' }));
+  expect(await screen.findByRole('dialog', { name: 'Confirmer l’envoi Gmail' })).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).toHaveBeenCalledTimes(1);
+});
+
+test('uncertain sending offers manual confirmation and a new editable draft', async () => {
+  const uncertain = { ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' };
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [uncertain] });
+  candidaturesAPI.createEmailRetry.mockResolvedValue({ data: { ...readyEmail, id: 26, status: 'draft', retry_of: 25 } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  expect(screen.getByText(/Résultat incertain/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Créer une nouvelle tentative pour Candidature Django' }));
+  expect(screen.getByRole('dialog', { name: 'Risque de double envoi' })).toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Risque de double envoi' })).getByRole('button', { name: 'Créer le brouillon' }));
+
+  await waitFor(() => expect(candidaturesAPI.createEmailRetry).toHaveBeenCalledWith(7, 25));
+  expect(await screen.findByRole('dialog', { name: 'Prévisualiser le brouillon' })).toBeInTheDocument();
+  expect(screen.getByText('Nouvelle tentative de l’email #25')).toBeInTheDocument();
+});
+
+test('a fresh sending attempt is not manually actionable before five minutes', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [{
+    ...readyEmail, status: 'sending', error_message: '', updated_at: new Date().toISOString(),
+  }] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  expect(screen.getByText('Envoi en cours')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /J’ai vérifié/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Créer une nouvelle tentative/ })).not.toBeInTheDocument();
+});
+
+test('two linked sent attempts and their history remain visible with a warning', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [
+    { ...readyEmail, status: 'sent' },
+    { ...readyEmail, id: 26, status: 'sent', retry_of: 25 },
+  ] });
+  candidatureActionsAPI.getAll.mockResolvedValue({ data: [
+    { ...existingAction, id: 40, commentaire: 'Email #25 confirme manuellement.' },
+    { ...existingAction, id: 41, commentaire: 'Email #26 envoye via Gmail.' },
+  ] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  expect(screen.getByText('Deux envois confirmés pour cette chaîne de tentatives.')).toBeInTheDocument();
+  expect(screen.getByText('Email #25 confirme manuellement.')).toBeInTheDocument();
+  expect(screen.getByText('Email #26 envoye via Gmail.')).toBeInTheDocument();
+});
+
+test('a cancelled retry can open another draft without branching from the first attempt', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [
+    { ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' },
+    { ...readyEmail, id: 26, status: 'cancelled', retry_of: 25 },
+  ] });
+  candidaturesAPI.createEmailRetry.mockResolvedValue({ data: { ...readyEmail, id: 27, status: 'draft', retry_of: 26 } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  expect(screen.queryByRole('button', { name: 'Créer une nouvelle tentative pour Candidature Django' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Relancer la tentative annulée #26' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Risque de double envoi' })).getByRole('button', { name: 'Créer le brouillon' }));
+
+  await waitFor(() => expect(candidaturesAPI.createEmailRetry).toHaveBeenCalledWith(7, 26));
+  expect(await screen.findByRole('dialog', { name: 'Prévisualiser le brouillon' })).toBeInTheDocument();
+});
+
+test('warns about two sent emails in one chain even with a failed attempt between them', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [
+    { ...readyEmail, id: 25, status: 'sent', retry_of: null },
+    { ...readyEmail, id: 26, status: 'failed', retry_of: 25 },
+    { ...readyEmail, id: 27, status: 'sent', retry_of: 26 },
+  ] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  expect(screen.getByText('Deux envois confirmés pour cette chaîne de tentatives.')).toBeInTheDocument();
+});
+
+test('preparing a draft does not call the Gmail send endpoint', async () => {
+  const draft = { ...readyEmail, status: 'draft' };
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [draft] });
+  candidaturesAPI.prepareEmailSend.mockResolvedValue({ data: readyEmail });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(screen.getByRole('button', { name: 'Voir le brouillon Candidature Django' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Prévisualiser le brouillon' })).getByRole('button', { name: 'Préparer l’envoi' }));
+
+  await waitFor(() => expect(candidaturesAPI.prepareEmailSend).toHaveBeenCalledWith(7, 25, expect.any(Object)));
+  expect(candidaturesAPI.sendEmail).not.toHaveBeenCalled();
+});
+
+test('a definite Gmail failure shows failed status and retry action', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.sendEmail.mockRejectedValue({ response: { status: 502, data: {
+    ...readyEmail, status: 'failed', error_message: 'gmail_rejected',
+  } } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText('Échec')).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmer l’envoi Gmail' })).not.toBeInTheDocument());
+  expect(screen.getByRole('button', { name: 'Créer une nouvelle tentative pour Candidature Django' })).toBeInTheDocument();
+});
+
+test('a revoked Gmail token shows an explicit reconnect message', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.sendEmail.mockRejectedValue({ response: { status: 502, data: {
+    ...readyEmail, status: 'failed', error_message: 'reconnect_required',
+  } } });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText('Reconnectez votre compte Gmail avant une nouvelle tentative.')).toBeInTheDocument();
+});
+
+test('manual confirmation of uncertain send refreshes history without Gmail send', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [{ ...readyEmail, status: 'sending', error_message: 'network_outcome_unknown' }] });
+  candidaturesAPI.confirmEmailManually.mockResolvedValue({ data: { ...readyEmail, status: 'sent', manual_confirmation_at: new Date().toISOString() } });
+  candidatureActionsAPI.getAll
+    .mockResolvedValueOnce({ data: [] })
+    .mockResolvedValueOnce({ data: [{ ...existingAction, id: 44, commentaire: 'Email #25 confirme manuellement.' }] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(screen.getByRole('button', { name: 'J’ai vérifié : email envoyé' }));
+
+  expect(await screen.findByText('Email #25 confirme manuellement.')).toBeInTheDocument();
+  expect(screen.getByText('Envoyé')).toBeInTheDocument();
+  expect(candidaturesAPI.sendEmail).not.toHaveBeenCalled();
+});
+
+test('a sending email older than five minutes becomes manually actionable on display', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [{
+    ...readyEmail, status: 'sending', error_message: '',
+    updated_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+  }] });
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+
+  expect(screen.getByText(/Résultat incertain/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'J’ai vérifié : email envoyé' })).toBeInTheDocument();
+});
+
+test('a sent email remains sent if history refresh fails', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [readyEmail] });
+  candidaturesAPI.sendEmail.mockResolvedValue({ data: { ...readyEmail, status: 'sent', gmail_message_id: 'gmail-25' } });
+  candidatureActionsAPI.getAll
+    .mockResolvedValueOnce({ data: [] })
+    .mockRejectedValueOnce(new Error('history offline'));
+  render(<CandidatureDetail />);
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(within(await openSendDialog()).getByRole('button', { name: 'Confirmer l’envoi' }));
+
+  expect(await screen.findByText('Envoyé')).toBeInTheDocument();
+  expect(screen.queryByText(/L’envoi a échoué/)).not.toBeInTheDocument();
 });

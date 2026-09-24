@@ -274,10 +274,37 @@ avec limite connue ; `[ ]` absent.
   `GMAIL_OAUTH_REDIRECT_URI`, `GMAIL_TOKEN_ENCRYPTION_KEY` (jamais commitees).
   Tests Google entierement mocks : 193 tests backend et 87 tests frontend
   (28 suites) reussis ; `api.0008` appliquee sur la base locale. Aucun envoi
-  d'email dans ce lot.
-- [ ] Envoi reel Gmail et interface d'upload/remplacement du CV par defaut
-  non commences ; la validation OAuth reelle avec un compte Google reste a
-  faire une fois les variables configurees. En mode Google Testing, le refresh
+  d'email dans ce lot. L'utilisateur a ensuite valide le flux OAuth reel avec
+  son compte Google jusqu'au retour dans les Parametres (compte connecte).
+- [x] Lot 5 : upload/remplacement du CV PDF par defaut dans les Parametres
+  (`GET, PUT /api/candidatures/cv_par_defaut/`, 5 Mio maximum, fichier prive)
+  et envoi individuel via `POST /api/candidatures/{id}/emails/{email_id}/envoyer/`.
+  Le brouillon doit d'abord etre `ready`, puis l'utilisateur confirme l'envoi
+  dans un dialogue distinct. Adresse expediteur du compte applicatif validee
+  (identique au Gmail connecte ou alias autorise), CV et connexion revalides
+  cote serveur. L'empreinte du CV presente a la confirmation doit correspondre
+  aux octets joints ; un remplacement exige une nouvelle confirmation. La
+  transition `ready -> sending` est reservee en base avant
+  l'appel Gmail ; un double POST n'envoie pas deux fois le meme email.
+  Un succes Gmail avec id devient `sent` et cree une action d'historique ; un
+  echec certain devient `failed`. En cas de resultat incertain, l'email reste
+  `sending` sans renvoi automatique. Apres erreur explicite ou cinq minutes
+  d'attente calculees a l'affichage, l'utilisateur peut confirmer manuellement
+  (`confirmer_manuellement/`) ou creer un nouveau brouillon lie par `retry_of`
+  (`nouvelle_tentative/`), avec avertissement du risque de doublon. Migration
+  `api.0009` cree les metadonnees de reconciliation et la chaine lineaire de
+  tentatives ; elle reste a appliquer sur la base locale apres integration.
+  Si la reponse HTTP de l'envoi est perdue, le frontend relit le statut serveur
+  et bloque tout nouvel envoi si cette verification echoue.
+  Tests Gmail/HTTP entierement mocks : 226 tests backend et 111 tests frontend
+  (29 suites) reussis ; build frontend reussi. Verification corrective avant
+  fusion : les 111 tests passent avec `npm test -- --watchAll=false` depuis le
+  worktree visible, sans reglage CI manuel. Le script npm lance CRA en serie et
+  en mode CI pour que PowerShell execute toute la suite meme si `npm.ps1` ne
+  transmet pas les options apres `--`. Les tests d'envoi attendent la fermeture
+  effective du dialogue MUI avant de chercher les actions de la page.
+  Aucun envoi Gmail reel n'a ete
+  effectue pour valider ce nouveau parcours. En mode Google Testing, le refresh
   token peut expirer apres sept jours et exiger une reconnexion.
 
 ### Preferences et interface

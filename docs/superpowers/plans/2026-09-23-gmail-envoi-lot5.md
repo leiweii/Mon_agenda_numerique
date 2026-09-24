@@ -14,7 +14,7 @@ l'appel reseau. Un service Gmail construit le MIME et appelle
 `users.messages.send` avec le scope OAuth `gmail.send` existant. Seule une
 reponse Gmail exploitable marque `sent`; les resultats incertains restent
 `sending` et exigent une decision manuelle. Les nouvelles tentatives sont des
-`EmailCandidature` distincts lies a l'original.
+`EmailCandidature` distincts lies a la tentative precedente.
 
 **Stack :** Django 6 / DRF / PostgreSQL, `google-auth-oauthlib`, Requests,
 React 19 / MUI 7 / Jest.
@@ -33,6 +33,9 @@ apres un resultat incertain.
   envoye par ce point d'entree : seul `ready` peut passer a `sending`.
 - Une requete repetee pour le meme email ne declenche jamais un second appel
   Gmail. `sent` retourne l'etat existant ; `sending` retourne un conflit.
+- Le CV montre dans la confirmation est recontrole par empreinte du nom et des
+  octets lus : si le CV change avant la reservation, refuser l'envoi et exiger
+  une nouvelle confirmation. Les octets lus et valides sont ceux joints.
 - Une nouvelle tentative apres `sending` est un nouvel enregistrement `draft`,
   ouvert en previsualisation/edition. Elle doit repasser par `ready` puis une
   nouvelle confirmation distincte avant tout appel Gmail.
@@ -41,6 +44,10 @@ apres un resultat incertain.
 - Les tokens, le MIME brut, le contenu du CV et les reponses Gmail brutes ne
   figurent ni dans les logs, ni dans `error_message`, ni dans le frontend.
 - Conserver `gmail.send` seul. Ne pas ajouter de permission de lecture Gmail.
+- L'adresse e-mail du compte applicatif est identique au compte Gmail connecte
+  ou a un alias d'envoi autorise (confirmation utilisateur). La valider avant
+  reservation et l'utiliser comme champ MIME `From` ; ne pas demander de scope
+  supplementaire pour lire le profil Gmail.
 - Les tests remplacent completement les appels Google et HTTP.
 - Mettre a jour uniquement la section 5 d'`AGENTS.md` apres tests passes.
 
@@ -57,7 +64,7 @@ utilise `timeout=(5, 20)` : 5 secondes pour etablir une connexion, puis
 | Erreur apres reservation mais avant la transmission du corps (refresh token invalide, `ConnectTimeout`, echec DNS ou handshake TLS identifie) | `failed` | Aucun corps d'envoi n'a pu atteindre Gmail. |
 | Reponse HTTP 4xx explicite, sauf 408 | `failed` | Gmail a rejete la requete ; 401 demande une reconnexion. |
 | Reponse 2xx avec `id` Gmail non vide | `sent` | Confirmation exploitable ; sauver l'id et l'historique dans la meme transaction. |
-| `ReadTimeout`, coupure apres connexion, erreur reseau de phase inconnue, HTTP 408/5xx, 2xx sans `id`, arret du processus apres reservation | `sending` | Gmail a peut-etre envoye ; aucun retry automatique. |
+| `ReadTimeout`, coupure apres connexion, erreur reseau ou TLS de phase inconnue, HTTP 408/5xx, 2xx sans `id`, arret du processus apres reservation | `sending` | Gmail a peut-etre envoye ; aucun retry automatique. |
 
 Pour `sending`, afficher : « Resultat incertain : Gmail a peut-etre envoye
 ce message. Verifiez le dossier Envoyes (destinataire, objet et date). Aucun
@@ -86,6 +93,9 @@ job planifie, Celery ou infrastructure supplementaire n'est necessaire.
    previsualisation/edition ; il doit etre prepare puis confirme avant l'envoi.
    Ce bouton seul n'appelle jamais Gmail. Si un successeur existe deja,
    l'endpoint renvoie ce meme successeur sans en creer un second.
+   Si un brouillon de relance est annule, une tentative suivante peut etre
+   creee depuis cet enfant `cancelled` ; la chaine reste lineaire et sans
+   plafond global.
 
 Si les deux tentatives sont finalement confirmees comme reussies, les deux
 emails restent `sent` et deux `ActionCandidature` distinctes apparaissent
@@ -135,7 +145,7 @@ Sources :
 
 ---
 
-### Tache 1 : CV par defaut prive et metadonnees de tentative
+### Task 1 : CV par defaut prive et metadonnees de tentative
 
 **Fichiers :** modifier `backend/api/models.py`, `backend/api/views.py`,
 `backend/backend/settings.py`, `backend/requirements.txt` ; creer la migration
@@ -164,7 +174,7 @@ compatible. Aucun endpoint public ne sert le contenu du CV.
 - [ ] Verifier le vert avec la meme commande, puis verifier
   `makemigrations --check --dry-run`.
 
-### Tache 2 : service Gmail injectable et sans retry automatique
+### Task 2 : service Gmail injectable et sans retry automatique
 
 **Fichiers :** creer `backend/api/gmail_send_service.py` et
 `backend/api/test_gmail_send_service.py` ; modifier `backend/requirements.txt`.
@@ -174,7 +184,7 @@ body, cv_bytes, cv_filename) -> gmail_message_id` ou leve une exception
 typisee `EnvoiRefuse(code)` / `ResultatIncertain(code)` ; jamais d'exception
 contenant un token ou le corps de reponse Gmail dans la sortie publique.
 
-- [ ] Ecrire les tests MIME : `To`, `Subject`, texte UTF-8, PDF joint sous
+- [ ] Ecrire les tests MIME : `From`, `To`, `Subject`, texte UTF-8, PDF joint sous
   son nom, `raw` base64url ; `messages.send` recoit uniquement un message
   individuel. Mocker `Credentials.refresh` et `requests.post` ; bloquer tout
   socket reel. Decoder `raw` avec `base64.urlsafe_b64decode`, puis
@@ -196,7 +206,7 @@ contenant un token ou le corps de reponse Gmail dans la sortie publique.
   avant POST demande une reconnexion sans appel Gmail.
 - [ ] Verifier le vert avec le meme module de tests.
 
-### Tache 3 : envoi atomique, confirmation manuelle et historique
+### Task 3 : envoi atomique, confirmation manuelle et historique
 
 **Fichiers :** creer `backend/api/email_send_service.py` ; modifier
 `backend/api/views.py`, `backend/api/serializers.py` si necessaire ; ajouter
@@ -206,14 +216,15 @@ les tests dans `backend/api/test_email_send.py`.
 
 | Methode et route | Effet |
 | --- | --- |
-| `POST /api/candidatures/{id}/emails/{email_id}/envoyer/` avec `{confirmation: true}` | Seul `ready` part vers Gmail. `sent` retourne l'etat existant sans renvoi ; `sending` retourne 409. |
+| `POST /api/candidatures/{id}/emails/{email_id}/envoyer/` avec `{confirmation: true, cv_fingerprint: "..."}` | Seul `ready` part vers Gmail et l'empreinte du CV confirme doit correspondre aux octets joints. `sent` retourne l'etat existant sans renvoi ; `sending` retourne 409. |
 | `POST /api/candidatures/{id}/emails/{email_id}/confirmer_manuellement/` avec `{confirmation: true}` | Seul `sending` devient `sent` sans Gmail. |
-| `POST /api/candidatures/{id}/emails/{email_id}/nouvelle_tentative/` avec `{confirmation: true}` | Seul `sending` ou `failed` cree une copie `draft` liee a la tentative precedente, sans Gmail. Repetition : meme successeur. |
+| `POST /api/candidatures/{id}/emails/{email_id}/nouvelle_tentative/` avec `{confirmation: true}` | Seul `sending`, `failed` ou un enfant `cancelled` cree une copie `draft` liee a la tentative precedente, sans Gmail. Repetition : meme successeur. |
 
 Reponses d'envoi : `200` avec l'email `sent` au succes (ou a une repetition
 apres succes) ; `202` avec l'email encore `sending` pour un resultat
 incertain ; `502` avec l'email `failed` pour un refus Gmail certain ; `400`
-pour confirmation absente, email invalide ou CV inaccessible ; `404` pour
+pour confirmation absente, email invalide ou CV inaccessible ; `409` si le CV
+ne correspond plus a celui confirme ; `404` pour
 parent/email hors scope ; `409` pour `draft`, `cancelled`, `failed`, `sending`
 ou Gmail non connecte. Un token revoque renvoie un message de reconnexion.
 
@@ -253,7 +264,7 @@ ou Gmail non connecte. Un token revoque renvoie un message de reconnexion.
 - [ ] Verifier le vert avec le meme module et les tests email existants de
   la section 23 (template, fallback, aucune requete Gmail a la preparation).
 
-### Tache 4 : upload/remplacement du CV dans Parametres
+### Task 4 : upload/remplacement du CV dans Parametres
 
 **Fichiers :** creer
 `frontend/src/components/Candidatures/DefaultCvCard.jsx` et son test ;
@@ -261,7 +272,8 @@ modifier `frontend/src/pages/Parametres.jsx`, ses tests et
 `frontend/src/services/api.js`.
 
 **Interfaces :** `candidaturesAPI.replaceDefaultCv(file)` emet un `PUT`
-multipart ; `getDefaultCv()` reste la lecture du nom. La carte affiche le
+multipart ; `getDefaultCv()` retourne le nom et une empreinte du fichier prive
+pour la confirmation d'envoi. La carte affiche le
 fichier actuel, un controle de selection PDF, « Ajouter » ou « Remplacer »,
 un etat loading et les erreurs serveur.
 
@@ -274,7 +286,7 @@ un etat loading et les erreurs serveur.
   ne jamais afficher une URL publique du CV.
 - [ ] Verifier le vert avec la meme commande et les tests `Parametres`.
 
-### Tache 5 : confirmation distincte, etats et reconciliation en frontend
+### Task 5 : confirmation distincte, etats et reconciliation en frontend
 
 **Fichiers :** modifier `frontend/src/pages/CandidatureDetail.jsx`,
 `frontend/src/components/Candidatures/EmailBrouillonDialog.jsx`,
@@ -294,6 +306,11 @@ tache 3.
   verification et les deux actions explicites. Un `sending` recent sans
   erreur affiche seulement « Envoi en cours » ; apres 5 minutes, afficher
   les actions de reconciliation.
+- [ ] Apres une reponse d'envoi perdue ou une erreur sans email serialise,
+  relire le statut serveur. Ne jamais qualifier l'issue d'echec certain ni
+  reproposer un envoi depuis un statut local potentiellement obsolete ; si la
+  relecture echoue, bloquer ce bouton et offrir une actualisation explicite.
+  Recharger aussi les metadonnees du CV a l'ouverture de la confirmation.
 - [ ] Ajouter un test qui affiche deux tentatives `sent` liees (`retry_of`)
   et deux evenements d'historique, avec un avertissement de doublon.
 - [ ] Verifier le rouge avec `npm test -- --watchAll=false --runTestsByPath src/pages/CandidatureDetail.test.jsx`.
@@ -304,7 +321,7 @@ tache 3.
   nouveau `draft` dans la previsualisation/edition existante.
 - [ ] Verifier le vert avec les tests de la page et du dialogue.
 
-### Tache 6 : verification globale, etat et commit
+### Task 6 : verification globale, etat et commit
 
 **Fichiers :** modifier `AGENTS.md` section 5 uniquement pour l'etat du lot.
 

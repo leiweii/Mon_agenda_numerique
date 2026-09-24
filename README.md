@@ -294,4 +294,4 @@ cd frontend
 npm test -- --watchAll=false
 ```
 
-Le script de test frontend utilise l'exécution en série via `--runInBand`, configurée dans `package.json`, pour limiter les timeouts liés à JSDOM et Material UI.
+Le script de test frontend lance CRA en mode CI et en série (`--runInBand`) pour exécuter toute la suite de façon fiable, y compris depuis PowerShell.

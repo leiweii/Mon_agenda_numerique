@@ -28,6 +28,7 @@ import {
 import { preferencesAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GmailConnectionCard from '../components/Candidatures/GmailConnectionCard';
+import DefaultCvCard from '../components/Candidatures/DefaultCvCard';
 
 const Parametres = ({ onThemeChange }) => {
   const { user } = useAuth();
@@ -112,6 +113,9 @@ const Parametres = ({ onThemeChange }) => {
       <Grid container spacing={3}>
         <Grid size={12}>
           <GmailConnectionCard />
+        </Grid>
+        <Grid size={12}>
+          <DefaultCvCard />
         </Grid>
         {/* Profil */}
         <Grid size={{ xs: 12, md: 4 }}>

@@ -74,11 +74,19 @@ export const candidaturesAPI = {
   delete: (id) => api.delete(`candidatures/${id}/`),
   archive: (id) => api.patch(`candidatures/${id}/archiver/`),
   getDefaultCv: () => api.get('candidatures/cv_par_defaut/'),
+  replaceDefaultCv: (file) => {
+    const data = new FormData();
+    data.append('fichier', file);
+    return api.put('candidatures/cv_par_defaut/', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   getEmails: (id) => api.get(`candidatures/${id}/emails/`),
   prepareEmail: (id, data) => api.post(`candidatures/${id}/preparer_email/`, data),
   updateEmail: (candidatureId, emailId, data) => api.patch(`candidatures/${candidatureId}/emails/${emailId}/`, data),
   cancelEmail: (candidatureId, emailId) => api.post(`candidatures/${candidatureId}/emails/${emailId}/annuler/`),
   prepareEmailSend: (candidatureId, emailId, data) => api.post(`candidatures/${candidatureId}/emails/${emailId}/preparer_envoi/`, data),
+  sendEmail: (candidatureId, emailId, cvFingerprint) => api.post(`candidatures/${candidatureId}/emails/${emailId}/envoyer/`, { confirmation: true, cv_fingerprint: cvFingerprint }),
+  confirmEmailManually: (candidatureId, emailId) => api.post(`candidatures/${candidatureId}/emails/${emailId}/confirmer_manuellement/`, { confirmation: true }),
+  createEmailRetry: (candidatureId, emailId) => api.post(`candidatures/${candidatureId}/emails/${emailId}/nouvelle_tentative/`, { confirmation: true }),
 };
 
 export const candidatureActionsAPI = {

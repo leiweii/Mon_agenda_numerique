@@ -98,4 +98,6 @@ class EmailCandidatureSerializer(serializers.ModelSerializer):
             'sent_at',
             'error_message',
             'gmail_message_id',
+            'retry_of',
+            'manual_confirmation_at',
         ]
