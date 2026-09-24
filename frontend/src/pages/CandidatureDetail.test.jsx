@@ -60,6 +60,32 @@ test('ouvre le brouillon precis fourni dans le lien de preparation en masse', as
   expect(within(dialog).queryByDisplayValue('ancien@example.com')).not.toBeInTheDocument();
 });
 
+test('integre plusieurs emails independants dans l historique de la candidature', async () => {
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [
+    {
+      id: 41, candidature: 7, recipient_email: 'initial@example.com',
+      subject: 'Candidature initiale', body: 'Bonjour', status: 'sent',
+      created_at: '2026-09-14T09:00:00Z', updated_at: '2026-09-14T09:30:00Z',
+      sent_at: '2026-09-14T09:30:00Z', retry_of: null,
+    },
+    {
+      id: 42, candidature: 7, recipient_email: 'relance@example.com',
+      subject: 'Relance 1', body: 'Bonjour de nouveau', status: 'draft',
+      created_at: '2026-09-16T10:00:00Z', updated_at: '2026-09-16T10:00:00Z',
+      sent_at: null, retry_of: null,
+    },
+  ] });
+
+  render(<CandidatureDetail />);
+
+  const history = await screen.findByRole('region', { name: 'Historique des actions et emails' });
+  expect(within(history).getByRole('heading', { name: 'Email préparé — Candidature initiale' })).toBeInTheDocument();
+  expect(within(history).getByRole('heading', { name: 'Email préparé — Relance 1' })).toBeInTheDocument();
+  expect(within(history).getByText('initial@example.com')).toBeInTheDocument();
+  expect(within(history).getByText('relance@example.com')).toBeInTheDocument();
+  expect(within(history).getByText('CV transmis.')).toBeInTheDocument();
+});
+
 async function openSendDialog() {
   fireEvent.click(screen.getByRole('button', { name: 'Envoyer l’email Candidature Django' }));
   return screen.findByRole('dialog', { name: 'Confirmer l’envoi Gmail' });
