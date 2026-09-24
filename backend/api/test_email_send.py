@@ -42,6 +42,16 @@ class DefaultCvUploadTests(APITestCase):
         self.assertTrue(Path(cv.fichier.path).is_file())
         self.assertEqual(CVUtilisateur.objects.count(), 1)
 
+    def test_post_upload_is_rejected_with_put_listed_as_allowed(self):
+        file = SimpleUploadedFile('cv.pdf', b'%PDF-1.4\nvalid', content_type='application/pdf')
+
+        response = self.client.post(self.url, {'fichier': file}, format='multipart')
+
+        self.assertEqual(response.status_code, 405)
+        self.assertIn('PUT', response['Allow'])
+        self.assertIn('POST', str(response.data['detail']))
+        self.assertFalse(CVUtilisateur.objects.filter(utilisateur=self.user).exists())
+
     def test_cv_remains_scoped_to_owner(self):
         CVUtilisateur.objects.create(utilisateur=self.other, fichier='cv/other.pdf')
 

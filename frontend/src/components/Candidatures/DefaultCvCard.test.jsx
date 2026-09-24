@@ -65,3 +65,17 @@ test('disables duplicate upload and keeps server error visible', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Fichier PDF invalide.');
   expect(screen.getByRole('button', { name: 'Ajouter le CV' })).toBeEnabled();
 });
+
+test('explains a 405 as an API backend version mismatch', async () => {
+  candidaturesAPI.replaceDefaultCv.mockRejectedValue({
+    response: { status: 405, data: { detail: 'Methode PUT non autorisee' } },
+  });
+  render(<DefaultCvCard />);
+  await screen.findByText('Aucun CV par défaut.');
+  fireEvent.change(screen.getByLabelText('Choisir un CV PDF'), { target: { files: [pdf()] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter le CV' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Le backend lancé ne prend pas en charge l’upload du CV. Lancez le backend de cette version de l’application sur le port 8000.'
+  );
+});

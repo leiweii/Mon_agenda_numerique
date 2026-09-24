@@ -44,7 +44,9 @@ export default function DefaultCvCard() {
       setFilename(response.data.filename);
       setSelected(null);
     } catch (failure) {
-      setError(extraireMessageErreur(failure, 'Impossible de téléverser le CV.'));
+      setError(failure?.response?.status === 405
+        ? 'Le backend lancé ne prend pas en charge l’upload du CV. Lancez le backend de cette version de l’application sur le port 8000.'
+        : extraireMessageErreur(failure, 'Impossible de téléverser le CV.'));
     } finally {
       setBusy(false);
     }
