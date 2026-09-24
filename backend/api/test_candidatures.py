@@ -1,5 +1,6 @@
 import csv
 import io
+from datetime import timedelta
 
 from django.contrib.auth.models import User
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from api import models as api_models
-from api.models import Candidature
+from api.models import Candidature, EmailCandidature
 
 
 class CandidatureModelTests(APITestCase):
@@ -111,6 +112,73 @@ class CandidatureEndpointTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([item['id'] for item in response.data], [self.candidature.id])
+
+    def test_list_email_status_is_null_without_email(self):
+        response = self.client.get('/api/candidatures/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data[0]['email_status'])
+
+    def test_list_email_status_uses_latest_created_at_then_id(self):
+        first = EmailCandidature.objects.create(
+            candidature=self.candidature,
+            recipient_email='contact@example.com',
+            subject='Premier email',
+            body='Bonjour',
+            status=EmailCandidature.Status.SENT,
+        )
+        second = EmailCandidature.objects.create(
+            candidature=self.candidature,
+            recipient_email='contact@example.com',
+            subject='Deuxieme email',
+            body='Bonjour',
+            status=EmailCandidature.Status.FAILED,
+        )
+        shared_created_at = first.created_at
+        EmailCandidature.objects.filter(pk=second.pk).update(created_at=shared_created_at)
+
+        response = self.client.get('/api/candidatures/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['email_status'], EmailCandidature.Status.FAILED)
+
+    def test_list_email_status_prioritizes_created_at_over_id(self):
+        earlier_id = EmailCandidature.objects.create(
+            candidature=self.candidature,
+            recipient_email='contact@example.com',
+            subject='Email le plus recent',
+            body='Bonjour',
+            status=EmailCandidature.Status.SENT,
+        )
+        later_id = EmailCandidature.objects.create(
+            candidature=self.candidature,
+            recipient_email='contact@example.com',
+            subject='Ancien email',
+            body='Bonjour',
+            status=EmailCandidature.Status.FAILED,
+        )
+        EmailCandidature.objects.filter(pk=earlier_id.pk).update(
+            created_at=later_id.created_at + timedelta(seconds=1)
+        )
+
+        response = self.client.get('/api/candidatures/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['email_status'], EmailCandidature.Status.SENT)
+
+    def test_list_email_status_is_not_taken_from_another_users_candidature(self):
+        EmailCandidature.objects.create(
+            candidature=self.other_candidature,
+            recipient_email='bob@example.com',
+            subject='Email Bob',
+            body='Bonjour',
+            status=EmailCandidature.Status.SENT,
+        )
+
+        response = self.client.get('/api/candidatures/')
+
+        self.assertEqual([item['id'] for item in response.data], [self.candidature.id])
+        self.assertIsNone(response.data[0]['email_status'])
 
     def test_export_csv_contains_expected_columns_and_respects_filters(self):
         Candidature.objects.create(

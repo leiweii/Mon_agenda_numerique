@@ -69,6 +69,10 @@ class CandidatureSerializer(serializers.ModelSerializer):
         read_only_fields = ['utilisateur', 'date_ajout', 'date_modification']
 
 
+class CandidatureListSerializer(CandidatureSerializer):
+    email_status = serializers.CharField(read_only=True, allow_null=True)
+
+
 class ActionCandidatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActionCandidature
