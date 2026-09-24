@@ -337,16 +337,18 @@ avec limite connue ; `[ ]` absent.
   suite a ensuite passe seule (26/26), puis la suite complete a passe (118/118).
 - [x] Lot 7 : `ActionTimeline.jsx` integre les emails de la candidature a
   l'historique chronologique des actions. Chaque email initial ou de relance
-  a son evenement de preparation ; pour un brouillon `draft` ou `ready`, la
-  derniere mise a jour est aussi visible si elle est distincte de la creation.
+  a son evenement de preparation ; la derniere mise a jour est aussi visible
+  si elle survient plus d'une seconde apres la creation, quel que soit le
+  statut. Cette date peut refleter un changement d'etat (dont l'envoi), pas
+  une edition du texte.
   Les actions d'envoi existantes restent dans la timeline et gardent leurs
   commandes ; les evenements email sont en lecture seule. Le statut et les
   liens entre tentatives restent visibles dans la section emails de la page.
-  L'historique ne reconstitue pas toutes les editions passees, faute de journal
-  d'audit dedie. La relation `EmailCandidature.candidature` est en `CASCADE` :
+  L'historique ne reconstitue pas les editions passees apres envoi, faute de
+  journal d'audit dedie. La relation `EmailCandidature.candidature` est en `CASCADE` :
   supprimer une candidature supprime tous ses emails et actions d'historique ;
   les autres utilisateurs restent intacts. Aucune nouvelle migration.
-  Verification lot 7 dans le worktree isole : 241 tests backend et 120 tests
+  Verification lot 7 dans le worktree isole : 241 tests backend et 121 tests
   frontend (30 suites) reussis. Build frontend reussi avec l'avertissement
   de hook preexistant dans `TacheListe.jsx`.
 

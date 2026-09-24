@@ -16,10 +16,7 @@ export default function ActionTimeline({ actions, emails = [], onAdd, onEdit, on
       key: `email-created-${email.id}`, kind: 'email', date_action: email.created_at,
       label: `Email préparé — ${email.subject}`, recipient_email: email.recipient_email,
     }];
-    if (
-      ['draft', 'ready'].includes(email.status)
-      && Date.parse(email.updated_at) - Date.parse(email.created_at) > 1000
-    ) {
+    if (Date.parse(email.updated_at) - Date.parse(email.created_at) > 1000) {
       events.push({
         key: `email-updated-${email.id}`, kind: 'email', date_action: email.updated_at,
         label: `Email mis à jour — ${email.subject}`, recipient_email: email.recipient_email,
@@ -41,6 +38,7 @@ export default function ActionTimeline({ actions, emails = [], onAdd, onEdit, on
         </Stack>
         <Button startIcon={<Add />} variant="outlined" onClick={onAdd} disabled={disabled}>Ajouter une action</Button>
       </Stack>
+      {emails.length > 0 && <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>La date de dernière mise à jour peut refléter un changement de statut ; les éditions antérieures ne sont pas historisées.</Typography>}
       {ordered.length === 0 && <Typography color="text.secondary">Aucune action ni aucun email enregistré.</Typography>}
       <Stack spacing={0} sx={{ borderLeft: 2, borderColor: 'divider', ml: 1.5 }}>
         {ordered.map(item => {

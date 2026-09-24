@@ -81,7 +81,7 @@ test('integre plusieurs emails independants dans l historique de la candidature'
   const history = await screen.findByRole('region', { name: 'Historique des actions et emails' });
   expect(within(history).getByRole('heading', { name: 'Email préparé — Candidature initiale' })).toBeInTheDocument();
   expect(within(history).getByRole('heading', { name: 'Email préparé — Relance 1' })).toBeInTheDocument();
-  expect(within(history).getByText('initial@example.com')).toBeInTheDocument();
+  expect(within(history).getAllByText('initial@example.com')).toHaveLength(2);
   expect(within(history).getByText('relance@example.com')).toBeInTheDocument();
   expect(within(history).getByText('CV transmis.')).toBeInTheDocument();
 });

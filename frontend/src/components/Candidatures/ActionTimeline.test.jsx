@@ -41,11 +41,32 @@ test('interleaves initial and follow-up emails with actions without edit command
     'Email mis à jour — Relance 1',
     'Email préparé — Relance 1',
     'Candidature envoyee',
+    'Email mis à jour — Candidature initiale',
     'Email préparé — Candidature initiale',
   ]);
   expect(within(history).getAllByText('relance@example.com')).toHaveLength(2);
-  expect(within(history).getByText('initial@example.com')).toBeInTheDocument();
+  expect(within(history).getAllByText('initial@example.com')).toHaveLength(2);
   expect(within(history).getAllByRole('button', { name: /Modifier/ })).toHaveLength(1);
   expect(within(history).getAllByRole('button', { name: /Supprimer/ })).toHaveLength(1);
+});
+
+test('keeps the latest email update visible after a draft becomes sent', () => {
+  const email = {
+    id: 7, recipient_email: 'contact@example.com', subject: 'Relance',
+    status: 'draft', created_at: '2026-09-14T09:00:00Z',
+    updated_at: '2026-09-14T09:05:00Z', sent_at: null,
+  };
+  const props = { actions: [], onAdd: jest.fn(), onEdit: jest.fn(), onDelete: jest.fn() };
+  const { rerender } = render(<ActionTimeline {...props} emails={[email]} />);
+  const history = screen.getByRole('region', { name: 'Historique des actions et emails' });
+  const previousUpdateDate = within(history).getByRole('heading', { name: 'Email mis à jour — Relance' }).nextElementSibling.textContent;
+  expect(within(history).getByText('La date de dernière mise à jour peut refléter un changement de statut ; les éditions antérieures ne sont pas historisées.')).toBeInTheDocument();
+
+  rerender(<ActionTimeline {...props} emails={[{
+    ...email, status: 'sent', updated_at: '2026-09-14T09:30:00Z', sent_at: '2026-09-14T09:30:00Z',
+  }]} />);
+
+  const updatedHeading = within(history).getByRole('heading', { name: 'Email mis à jour — Relance' });
+  expect(updatedHeading.nextElementSibling.textContent).not.toBe(previousUpdateDate);
 });
 
