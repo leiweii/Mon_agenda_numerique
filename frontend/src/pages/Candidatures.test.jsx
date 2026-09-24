@@ -117,7 +117,7 @@ test('lists statuses and only deletes after confirmation', async () => {
   candidaturesAPI.delete.mockResolvedValue({});
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Dev Django' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Entretien (1)' })).toBeInTheDocument();
+  expect(screen.getByText('Entretien')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Supprimer Dev Django' }));
   expect(candidaturesAPI.delete).not.toHaveBeenCalled();
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer' }));
@@ -154,7 +154,7 @@ test('reads active filters from the URL and sends repeated query parameters', as
 test('updates the browser URL and reloads when a filter changes', async () => {
   renderPage();
   await screen.findByText('Aucune candidature');
-  fireEvent.change(screen.getByLabelText('Recherche'), { target: { value: 'django' } });
+  fireEvent.change(screen.getByLabelText('Rechercher une entreprise ou un poste'), { target: { value: 'django' } });
   await waitFor(() => expect(candidaturesAPI.getAll).toHaveBeenLastCalledWith(expect.any(URLSearchParams)));
   expect(candidaturesAPI.getAll.mock.calls.at(-1)[0].get('search')).toBe('django');
   expect(window.location.search).toContain('search=django');
@@ -299,4 +299,68 @@ test('signale une erreur 500 de preparation en masse avec une piste exploitable'
   expect(within(dialog).getByRole('alert')).toHaveTextContent('avant de réessayer pour éviter les doublons');
   expect(within(dialog).getByRole('alert')).toHaveTextContent('migrations');
   expect(within(dialog).getByRole('button', { name: 'Creer les brouillons' })).toBeEnabled();
+});
+
+test('shows filtered counters and the redesigned search toolbar', async () => {
+  candidaturesAPI.getAll.mockResolvedValue({ data: [
+    { ...offre, id: 1, statut: 'postule', date_relance: '2000-01-01' },
+    { ...offre, id: 2, titre: 'Dev React', statut: 'refuse', date_relance: '2000-01-01' },
+  ] });
+  renderPage('/candidatures?search=dev');
+
+  await screen.findByRole('heading', { name: 'Dev React' });
+  expect(screen.getByLabelText('Rechercher une entreprise ou un poste')).toHaveValue('dev');
+  expect(screen.getByText('En cours').previousSibling).toHaveTextContent('1');
+  expect(screen.getByText('À relancer').previousSibling).toHaveTextContent('2');
+  expect(screen.getByRole('button', { name: 'Afficher les filtres' })).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Afficher les filtres' }));
+  expect(screen.getByLabelText('Inclure les archivees')).toBeInTheDocument();
+});
+
+test('recalculates counters from the response after a search and keeps the existing relance filter', async () => {
+  candidaturesAPI.getAll
+    .mockResolvedValueOnce({ data: [
+      { ...offre, id: 1, statut: 'postule', date_relance: '2000-01-01' },
+      { ...offre, id: 2, titre: 'Dev React', statut: 'entretien' },
+    ] })
+    .mockResolvedValueOnce({ data: [{ ...offre, id: 1, statut: 'postule', date_relance: '2000-01-01' }] })
+    .mockResolvedValueOnce({ data: [{ ...offre, id: 1, statut: 'postule', date_relance: '2000-01-01' }] });
+  renderPage();
+
+  await screen.findByRole('heading', { name: 'Dev React' });
+  expect(screen.getByText('En cours').previousSibling).toHaveTextContent('2');
+  fireEvent.change(screen.getByLabelText('Rechercher une entreprise ou un poste'), { target: { value: 'Django' } });
+  await waitFor(() => expect(screen.queryByRole('heading', { name: 'Dev React' })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText('En cours').previousSibling).toHaveTextContent('1'));
+
+  fireEvent.click(screen.getByRole('button', { name: /À relancer/ }));
+  await waitFor(() => expect(candidaturesAPI.getAll.mock.calls.at(-1)[0].get('relance_due')).toBe('true'));
+  expect(window.location.search).toContain('relance_due=true');
+});
+
+test('refreshes the displayed email status after successful bulk draft preparation', async () => {
+  const candidature = { ...offre, id: 1, email_status: null };
+  candidaturesAPI.getAll.mockResolvedValue({ data: [candidature] });
+  candidaturesAPI.prepareEmails.mockResolvedValue({ data: { emails: [
+    { id: 11, candidature: 1, recipient_email: 'contact@example.com', status: 'draft' },
+  ] } });
+  renderPage();
+
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  expect(screen.getByText(/Email : À préparer/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev Django/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Preparer les emails/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Creer les brouillons' }));
+
+  expect(await screen.findByText(/Email : Brouillon/)).toBeInTheDocument();
+  expect(candidaturesAPI.getAll).toHaveBeenCalledTimes(1);
+});
+
+test('does not show a misleading count or export while list loading fails', async () => {
+  candidaturesAPI.getAll.mockRejectedValue({ response: { data: { detail: 'Liste indisponible.' } } });
+  renderPage();
+
+  expect(await screen.findByText('Liste indisponible.')).toBeInTheDocument();
+  expect(screen.queryByText('0 candidature')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Exporter en CSV' })).not.toBeInTheDocument();
 });

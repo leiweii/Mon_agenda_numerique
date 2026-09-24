@@ -239,6 +239,22 @@ avec limite connue ; `[ ]` absent.
   des migrations `api` est coherent et aucun changement de modele non migre
   n'est detecte. Les migrations `0003` a `0005` restent a appliquer sur la
   base locale avec `python manage.py migrate`.
+- [x] Redesign de `/candidatures` sur une branche isolee issue de `main` :
+  compteurs calcules sur les candidatures affichees, recherche principale,
+  filtres detailles repliables et cartes en une colonne. Ajout manuel, import
+  URL, export CSV, selection multiple et Kanban restent disponibles. La liste
+  API expose `email_status` depuis le dernier `EmailCandidature` (tri
+  `created_at`, puis `id` decroissants) ; `null` est affiche « A preparer ».
+  Les tags restent des tags ; aucune stack n'est deduite, et aucune migration
+  n'est necessaire. Pour ajouter une stack plus tard, prevoir un champ explicite
+  de technologies avec migration, formulaire et API. « En cours » compte les
+  statuts `postule` et `entretien` ; « Echeance sous 7 jours » reprend la plage
+  du filtre existant. « A relancer » garde exactement la regle actuelle
+  `date_relance <= aujourd'hui`, meme pour `accepte` ou `refuse`. Amelioration
+  ulterieure a valider separement : exclure ces statuts terminaux des relances.
+  Verification : 243 tests backend et 126 tests frontend (31 suites) reussis,
+  build frontend reussi avec l'avertissement preexistant dans `TacheListe.jsx`,
+  `makemigrations --check --dry-run` sans changement.
 
 ### Emails de candidature
 
@@ -444,6 +460,8 @@ Routes API principales, toutes prefixees par `/api/` :
 - `/taches/`, `/taches/{id}/`, `/taches/aujourd_hui/`, `/taches/cette_semaine/`
 - `/taches/statistiques/`, `/taches/meilleur_moment/`, `/taches/recommandation_ia/`
 - `/candidatures/`, `/candidatures/{id}/`
+- `GET /candidatures/` inclut `email_status` nullable dans chaque element ;
+  les autres routes de candidature conservent leur contrat existant.
 - `POST /candidatures/import_url/`
 - `PATCH /candidatures/{id}/archiver/`
 - `GET /candidatures/cv_par_defaut/`

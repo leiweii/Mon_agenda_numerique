@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Grid, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { Add, DeleteOutline, Refresh, Search, ViewKanban, ViewList, WorkOutline } from '@mui/icons-material';
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Add, DeleteOutline, Download, FilterAltOutlined, Refresh, Search, ViewKanban, ViewList, WorkOutline } from '@mui/icons-material';
 import CandidatureCard from '../components/Candidatures/CandidatureCard';
 import CandidatureForm from '../components/Candidatures/CandidatureForm';
 import CandidatureFiltres, { DEFAULT_FILTERS } from '../components/Candidatures/CandidatureFiltres';
+import CandidatureStats from '../components/Candidatures/CandidatureStats';
 import CandidatureKanban from '../components/Candidatures/CandidatureKanban';
 import PreparationEmailsMasseDialog from '../components/Candidatures/PreparationEmailsMasseDialog';
-import { STATUTS } from '../components/Candidatures/options';
 import { candidaturesAPI } from '../services/api';
 import { extraireMessageErreur } from '../services/errors';
 
@@ -45,6 +45,10 @@ export default function Candidatures() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [viewMode, setViewMode] = useState('liste');
+  const [filtersOpen, setFiltersOpen] = useState(() => {
+    const params = new URLSearchParams(queryString);
+    return [...params.keys()].some(key => key !== 'search');
+  });
   const [movingId, setMovingId] = useState(null);
   const [moveError, setMoveError] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -140,7 +144,7 @@ export default function Candidatures() {
         if (filters.statut.length > 0 && !filters.statut.includes(data.statut)) {
           return current.filter(item => item.id !== candidature.id);
         }
-        return current.map(item => item.id === candidature.id ? data : item);
+        return current.map(item => item.id === candidature.id ? { ...item, ...data } : item);
       });
     } catch (error) {
       setMoveError(extraireMessageErreur(error, 'Impossible de mettre a jour le statut.'));
@@ -182,6 +186,9 @@ export default function Candidatures() {
   };
 
   const bulkPreparationSucceeded = emails => {
+    const statusesByCandidature = new Map(emails.map(email => [email.candidature, email.status]));
+    setCandidatures(current => current.map(item => statusesByCandidature.has(item.id)
+      ? { ...item, email_status: statusesByCandidature.get(item.id) } : item));
     setPreparedEmails(emails.map(email => ({
       ...email, candidatureInfo: bulkPreparation.find(item => item.id === email.candidature),
     })));
@@ -189,40 +196,55 @@ export default function Candidatures() {
     setSelectedIds([]);
   };
 
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', minWidth: 0 }}>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
+    <Box sx={{ maxWidth: 1120, mx: 'auto', minWidth: 0 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2.5 }}>
         <WorkOutline color="primary" />
         <Typography component="h1" variant="h4" sx={{ fontSize: '1.75rem' }}>Candidatures</Typography>
       </Stack>
-      <Box component="form" onSubmit={analyse} sx={{ pb: 3, borderBottom: 1, borderColor: 'divider' }}>
+      {!loading && !loadError && <CandidatureStats candidatures={candidatures} today={today}
+        onRelance={() => { setFiltersOpen(true); changeFilters({ ...filters, relance_due: true }); }} />}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} sx={{ mb: 2 }}>
+        <TextField size="small" fullWidth label="Rechercher une entreprise ou un poste" value={filters.search}
+          onChange={event => changeFilters({ ...filters, search: event.target.value })}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }}
+          sx={{ flex: 1, minWidth: 0 }} />
+        <Button variant="contained" startIcon={<Add />} disabled={analysing || loading}
+          onClick={() => setEditor({ candidature: null })} sx={{ flexShrink: 0 }}>Ajouter manuellement</Button>
+        <ToggleButtonGroup exclusive size="small" value={viewMode} aria-label="Mode d affichage"
+          onChange={(_, value) => { if (value) setViewMode(value); }} sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}>
+          <ToggleButton value="liste" aria-label="Vue Liste"><ViewList fontSize="small" /></ToggleButton>
+          <ToggleButton value="kanban" aria-label="Vue Kanban"><ViewKanban fontSize="small" /></ToggleButton>
+        </ToggleButtonGroup>
+        <Button variant={filtersOpen ? 'contained' : 'outlined'} startIcon={<FilterAltOutlined />}
+          aria-label={filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'} aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen(open => !open)} sx={{ flexShrink: 0 }}>Filtres</Button>
+      </Stack>
+      <Box component="form" onSubmit={analyse} sx={{ mb: 2 }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <TextField label="Lien de l'offre" type="url" required size="small" fullWidth value={url}
             onChange={event => setUrl(event.target.value)} disabled={analysing}
             slotProps={{ htmlInput: { maxLength: 1000 } }} />
           <Button type="submit" variant="contained" startIcon={analysing ? <CircularProgress size={18} color="inherit" /> : <Search />}
             disabled={analysing || loading || !url.trim()} sx={{ minWidth: 140 }}>{analysing ? 'Analyse...' : 'Analyser'}</Button>
-          <Button startIcon={<Add />} disabled={analysing || loading} onClick={() => setEditor({ candidature: null })}
-            sx={{ flexShrink: 0 }}>Ajouter manuellement</Button>
         </Stack>
         {analysisError && <Alert severity="error" sx={{ mt: 2 }}>{analysisError}</Alert>}
       </Box>
-      <CandidatureFiltres filters={filters} onChange={changeFilters} tagsDisponibles={knownTags}
-        onExport={exportCsv} exporting={exporting} />
+      {filtersOpen && <CandidatureFiltres filters={filters} onChange={changeFilters} tagsDisponibles={knownTags} hideSearch />}
+      {!loading && !loadError && <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+        <Typography component="p" variant="body2" color="text.secondary">
+          {candidatures.length} candidature{candidatures.length !== 1 ? 's' : ''}
+        </Typography>
+        <Button size="small" variant="text" startIcon={<Download />} disabled={exporting} onClick={exportCsv}>
+          {exporting ? 'Export...' : 'Exporter en CSV'}
+        </Button>
+      </Stack>}
       {exportError && <Alert severity="error" sx={{ mt: 2 }}>{exportError}</Alert>}
       {loading ? <Box role="status" aria-label="Chargement des candidatures" sx={{ py: 5, textAlign: 'center' }}><CircularProgress /></Box>
         : loadError ? <Alert severity="error" sx={{ mt: 3 }} action={<Button startIcon={<Refresh />} onClick={load}>Reessayer</Button>}>{loadError}</Alert>
           : <>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ my: 3 }}>
-              <Typography component="p" variant="body2" color="text.secondary">
-                {candidatures.length} candidature{candidatures.length !== 1 ? 's' : ''}
-              </Typography>
-              <ToggleButtonGroup exclusive size="small" value={viewMode} aria-label="Mode d affichage"
-                onChange={(_, value) => { if (value) setViewMode(value); }}>
-                <ToggleButton value="liste" aria-label="Vue Liste"><ViewList fontSize="small" /></ToggleButton>
-                <ToggleButton value="kanban" aria-label="Vue Kanban"><ViewKanban fontSize="small" /></ToggleButton>
-              </ToggleButtonGroup>
-            </Stack>
             {moveError && <Alert severity="error" sx={{ mb: 2 }}>{moveError}</Alert>}
             {viewMode === 'liste' && <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
               <Button variant="outlined" onClick={openBulkPreparation} disabled={selectedIds.length === 0}>
@@ -248,19 +270,13 @@ export default function Candidatures() {
             {viewMode === 'kanban'
               ? <CandidatureKanban candidatures={candidatures} onStatusChange={changeStatus}
                 onOpen={candidature => navigate(`/candidatures/${candidature.id}`)} disabled={movingId !== null} />
-              : Object.entries(STATUTS).map(([statut, { label }]) => {
-              const items = candidatures.filter(item => item.statut === statut).sort((a, b) => (Date.parse(b.date_ajout) || 0) - (Date.parse(a.date_ajout) || 0));
-              return items.length > 0 && <Box component="section" key={statut} sx={{ mb: 4 }}>
-                <Typography component="h2" variant="h6" sx={{ mb: 1.5, fontSize: '1rem' }}>{label} ({items.length})</Typography>
-                <Grid container spacing={2}>
-                  {items.map(item => <Grid key={item.id} size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
-                    <CandidatureCard candidature={item} disabled={analysing} selected={selectedIds.includes(item.id)} onSelect={toggleSelection} onEdit={candidature => setEditor({ candidature })}
-                      onOpen={candidature => navigate(`/candidatures/${candidature.id}`)}
-                      onDelete={candidature => { setDeleteError(''); setDeletion(candidature); }} />
-                  </Grid>)}
-                </Grid>
-              </Box>;
-            })}
+              : <Stack spacing={1.5} sx={{ pb: 3 }}>
+                {candidatures.map(item => <CandidatureCard key={item.id} candidature={item} disabled={analysing}
+                  selected={selectedIds.includes(item.id)} onSelect={toggleSelection}
+                  onEdit={candidature => setEditor({ candidature })}
+                  onOpen={candidature => navigate(`/candidatures/${candidature.id}`)}
+                  onDelete={candidature => { setDeleteError(''); setDeletion(candidature); }} />)}
+              </Stack>}
           </>}
       <CandidatureForm open={Boolean(editor)} candidature={editor?.candidature} message={editor?.message}
         onClose={() => setEditor(null)} onSubmit={save} />

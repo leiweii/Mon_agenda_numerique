@@ -38,7 +38,7 @@ function MultiSelect({ label, value, options, onChange }) {
   );
 }
 
-export default function CandidatureFiltres({ filters, onChange, tagsDisponibles, onExport, exporting = false }) {
+export default function CandidatureFiltres({ filters, onChange, tagsDisponibles, onExport, exporting = false, hideSearch = false }) {
   const orderingId = useId();
   const update = patch => onChange({ ...filters, ...patch });
   const active = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
@@ -59,10 +59,10 @@ export default function CandidatureFiltres({ filters, onChange, tagsDisponibles,
         </Stack>
       </Stack>
       <Grid container spacing={1.5}>
-        <Grid size={{ xs: 12, md: 4 }}>
+        {!hideSearch && <Grid size={{ xs: 12, md: 4 }}>
           <TextField fullWidth size="small" label="Recherche" value={filters.search}
             onChange={event => update({ search: event.target.value })} />
-        </Grid>
+        </Grid>}
         <Grid size={{ xs: 12, sm: 6, md: 4 }}><MultiSelect label="Statut" value={filters.statut} options={STATUTS} onChange={statut => update({ statut })} /></Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4 }}><MultiSelect label="Type de poste" value={filters.type_poste} options={TYPES_POSTE} onChange={type_poste => update({ type_poste })} /></Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4 }}><MultiSelect label="Source du canal" value={filters.source_canal} options={SOURCES_CANAL} onChange={source_canal => update({ source_canal })} /></Grid>

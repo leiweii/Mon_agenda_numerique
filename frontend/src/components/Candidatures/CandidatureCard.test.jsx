@@ -29,3 +29,22 @@ test('does not render a link for a non HTTP URL', () => {
   render(<CandidatureCard candidature={{ titre: 'Dev', url: 'javascript:alert(1)' }} onEdit={jest.fn()} onDelete={jest.fn()} />);
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
 });
+
+test('shows the actual location, tags and latest email status without inventing a stack', () => {
+  render(<CandidatureCard candidature={{ titre: 'Backend', entreprise: 'Example', statut: 'postule',
+    lieu: 'Paris', mode_travail: 'hybride', tags: ['prioritaire'], email_status: 'sent' }}
+    onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+  expect(screen.getByText('Paris')).toBeInTheDocument();
+  expect(screen.getByText('Hybride')).toBeInTheDocument();
+  expect(screen.getByText('prioritaire')).toBeInTheDocument();
+  expect(screen.getByText(/Envoyé/)).toBeInTheDocument();
+  expect(screen.queryByText(/stack/i)).not.toBeInTheDocument();
+});
+
+test('shows À préparer when no email exists', () => {
+  render(<CandidatureCard candidature={{ titre: 'Backend', statut: 'a_postuler', email_status: null }}
+    onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+  expect(screen.getByText(/À préparer/)).toBeInTheDocument();
+});

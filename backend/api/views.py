@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -23,6 +23,7 @@ from .email_send_service import EmailSendError, confirmer_manuellement, envoyer_
 from .serializers import ImportCandidatureSerializer
 from .serializers import (
     ActionCandidatureSerializer,
+    CandidatureListSerializer,
     CandidatureSerializer,
     CategorieSerializer,
     EmailCandidatureSerializer,
@@ -137,10 +138,20 @@ class CandidatureViewSet(viewsets.ModelViewSet):
     serializer_class = CandidatureSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CandidatureListSerializer
+        return super().get_serializer_class()
+
     def get_queryset(self):
         queryset = Candidature.objects.filter(utilisateur=self.request.user)
         if self.action not in {'list', 'export_csv'}:
             return queryset
+        if self.action == 'list':
+            latest_email = EmailCandidature.objects.filter(
+                candidature_id=OuterRef('pk')
+            ).order_by('-created_at', '-id').values('status')[:1]
+            queryset = queryset.annotate(email_status=Subquery(latest_email))
         params = self.request.query_params
 
         if params.get('archive', '').lower() != 'true':
