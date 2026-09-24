@@ -293,7 +293,8 @@ avec limite connue ; `[ ]` absent.
   (`confirmer_manuellement/`) ou creer un nouveau brouillon lie par `retry_of`
   (`nouvelle_tentative/`), avec avertissement du risque de doublon. Migration
   `api.0009` cree les metadonnees de reconciliation et la chaine lineaire de
-  tentatives ; elle reste a appliquer sur la base locale apres integration.
+  tentatives ; elle reste a appliquer sur la base locale (`showmigrations` :
+  `[ ] 0009` apres fusion).
   Si la reponse HTTP de l'envoi est perdue, le frontend relit le statut serveur
   et bloque tout nouvel envoi si cette verification echoue.
   Tests Gmail/HTTP entierement mocks : 226 tests backend et 111 tests frontend
@@ -303,9 +304,9 @@ avec limite connue ; `[ ]` absent.
   en mode CI pour que PowerShell execute toute la suite meme si `npm.ps1` ne
   transmet pas les options apres `--`. Les tests d'envoi attendent la fermeture
   effective du dialogue MUI avant de chercher les actions de la page.
-  Aucun envoi Gmail reel n'a ete
-  effectue pour valider ce nouveau parcours. En mode Google Testing, le refresh
-  token peut expirer apres sept jours et exiger une reconnexion.
+  Le lot 5 a ete valide manuellement par l'utilisateur avant la fusion. En mode
+  Google Testing, le refresh token peut expirer apres sept jours et exiger une
+  reconnexion.
 - [x] Lot 6 : selection multiple dans la liste des candidatures et
   `POST /api/candidatures/preparer_emails/` pour creer un brouillon `draft`
   independant par candidature. Chaque destinataire et contact est saisi
@@ -320,8 +321,10 @@ avec limite connue ; `[ ]` absent.
   237 tests backend et 115 tests frontend (29 suites) reussis avec
   `npm test -- --watchAll=false`. Build frontend reussi avec le seul
   avertissement de hook preexistant dans `TacheListe.jsx` ; aucune migration
-  de modele detectee. Le lot 5 reste non fusionne, et son envoi Gmail reel
-  demande toujours une validation manuelle avant integration.
+  de modele detectee. Les lots 5 et 6 ont ete fusionnes sur `main` par deux
+  merges classiques sans conflit manuel ni squash. Verification de `main`
+  apres fusion : 238 tests backend et 117 tests frontend (30 suites) reussis
+  avec `npm test -- --watchAll=false`. Aucun push n'a ete effectue.
 
 ### Preferences et interface
 
