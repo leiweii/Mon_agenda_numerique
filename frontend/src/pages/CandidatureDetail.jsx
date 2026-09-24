@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog,
@@ -55,7 +55,9 @@ function hasMultipleConfirmedEmails(emails) {
 export default function CandidatureDetail() {
   const { id } = useParams();
   const candidatureId = Number(id);
+  const requestedEmailId = Number(new URLSearchParams(window.location.search).get('email_id'));
   const navigate = useNavigate();
+  const openedEmailId = useRef(null);
   const [candidature, setCandidature] = useState(null);
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +117,15 @@ export default function CandidatureDetail() {
   }, [candidatureId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!requestedEmailId || openedEmailId.current === requestedEmailId) return;
+    const requestedDraft = emails.find(email => email.id === requestedEmailId && email.status === 'draft');
+    if (requestedDraft) {
+      openedEmailId.current = requestedEmailId;
+      setEmailDraft(requestedDraft);
+    }
+  }, [emails, requestedEmailId]);
 
   const patchCandidature = async data => {
     setBusy(true);

@@ -86,6 +86,16 @@ class PreparationEmailCandidatureSerializer(serializers.Serializer):
     github_url = serializers.URLField(max_length=500)
 
 
+class PreparationEmailsMasseCommunSerializer(serializers.Serializer):
+    formation = serializers.CharField(max_length=255)
+    portfolio_url = serializers.URLField(max_length=500)
+    github_url = serializers.URLField(max_length=500)
+
+
+class PreparationEmailMasseLigneSerializer(PreparationEmailCandidatureSerializer):
+    candidature_id = serializers.IntegerField(min_value=1)
+
+
 class EmailCandidatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailCandidature

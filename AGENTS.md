@@ -306,6 +306,22 @@ avec limite connue ; `[ ]` absent.
   Aucun envoi Gmail reel n'a ete
   effectue pour valider ce nouveau parcours. En mode Google Testing, le refresh
   token peut expirer apres sept jours et exiger une reconnexion.
+- [x] Lot 6 : selection multiple dans la liste des candidatures et
+  `POST /api/candidatures/preparer_emails/` pour creer un brouillon `draft`
+  independant par candidature. Chaque destinataire et contact est saisi
+  separement ; les champs de formation et liens sont partages. La validation
+  de toutes les lignes et du proprietaire de chaque candidature precede une
+  creation atomique : en cas d'erreur, aucune ligne n'est creee et l'interface
+  designe chaque candidature concernee. Un brouillon deja existant n'empeche
+  pas la creation d'un nouveau brouillon distinct. Le resultat liste les
+  brouillons et propose seulement leur ouverture individuelle dans un nouvel
+  onglet, directement sur le bon brouillon ; aucun envoi groupe, CC ou BCC.
+  Aucune migration supplementaire. Verification lot 6 :
+  237 tests backend et 115 tests frontend (29 suites) reussis avec
+  `npm test -- --watchAll=false`. Build frontend reussi avec le seul
+  avertissement de hook preexistant dans `TacheListe.jsx` ; aucune migration
+  de modele detectee. Le lot 5 reste non fusionne, et son envoi Gmail reel
+  demande toujours une validation manuelle avant integration.
 
 ### Preferences et interface
 
@@ -419,6 +435,7 @@ Routes API principales, toutes prefixees par `/api/` :
 - `PATCH /candidatures/{id}/archiver/`
 - `GET /candidatures/cv_par_defaut/`
 - `POST /candidatures/{id}/preparer_email/`, `GET /candidatures/{id}/emails/`
+- `POST /candidatures/preparer_emails/` (preparation atomique, sans envoi)
 - `PATCH /candidatures/{id}/emails/{email_id}/`
 - `POST /candidatures/{id}/emails/{email_id}/annuler/`
 - `POST /candidatures/{id}/emails/{email_id}/preparer_envoi/` (`ready`, sans envoi)

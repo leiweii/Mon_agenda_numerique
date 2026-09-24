@@ -39,10 +39,25 @@ const existingAction = {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  window.history.replaceState({}, '', '/candidatures/7');
   candidaturesAPI.getById.mockResolvedValue({ data: candidature });
   candidatureActionsAPI.getAll.mockResolvedValue({ data: [existingAction] });
   candidaturesAPI.getDefaultCv.mockResolvedValue({ data: { filename: 'CV_backend.pdf', fingerprint: 'cv-original' } });
   candidaturesAPI.getEmails.mockResolvedValue({ data: [] });
+});
+
+test('ouvre le brouillon precis fourni dans le lien de preparation en masse', async () => {
+  window.history.replaceState({}, '', '/candidatures/7?email_id=42');
+  candidaturesAPI.getEmails.mockResolvedValue({ data: [
+    { id: 41, candidature: 7, recipient_email: 'ancien@example.com', subject: 'Ancien', body: 'Ancien texte', status: 'draft' },
+    { id: 42, candidature: 7, recipient_email: 'nouveau@example.com', subject: 'Nouveau', body: 'Nouveau texte', status: 'draft' },
+  ] });
+
+  render(<CandidatureDetail />);
+
+  const dialog = await screen.findByRole('dialog', { name: /brouillon/i });
+  expect(within(dialog).getByDisplayValue('nouveau@example.com')).toBeInTheDocument();
+  expect(within(dialog).queryByDisplayValue('ancien@example.com')).not.toBeInTheDocument();
 });
 
 async function openSendDialog() {

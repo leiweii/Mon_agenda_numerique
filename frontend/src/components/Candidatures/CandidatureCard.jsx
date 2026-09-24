@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, ButtonBase, Card, CardContent, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, ButtonBase, Card, CardContent, Checkbox, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import { DeleteOutline, EditOutlined, OpenInNew, Star } from '@mui/icons-material';
 import { differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 import { STATUTS, TYPES_POSTE } from './options';
@@ -9,7 +9,7 @@ function dateLabel(value) {
   return date && isValid(date) ? format(date, 'dd/MM/yyyy') : '';
 }
 
-export default function CandidatureCard({ candidature, onOpen, onEdit, onDelete, disabled = false }) {
+export default function CandidatureCard({ candidature, onOpen, onEdit, onDelete, selected = false, onSelect, disabled = false }) {
   const status = STATUTS[candidature.statut] || STATUTS.a_postuler;
   const days = candidature.date_limite ? differenceInCalendarDays(parseISO(candidature.date_limite), new Date()) : null;
   const urgent = days !== null && days <= 7;
@@ -17,6 +17,8 @@ export default function CandidatureCard({ candidature, onOpen, onEdit, onDelete,
     <Card component="article" variant="outlined" sx={{ borderRadius: '8px', minWidth: 0, height: '100%', borderLeftWidth: 3, borderLeftColor: urgent ? 'warning.main' : 'divider' }}>
       <CardContent>
         <Stack direction="row" spacing={1} alignItems="flex-start" justifyContent="space-between">
+          {onSelect && <Checkbox checked={selected} onChange={event => onSelect(candidature, event.target.checked)}
+            disabled={disabled} inputProps={{ 'aria-label': `Selectionner ${candidature.titre} - ${candidature.entreprise || 'Entreprise non renseignee'}` }} />}
           <Box sx={{ minWidth: 0 }}>
             <ButtonBase disabled={disabled} onClick={() => (onOpen || onEdit)(candidature)} sx={{ textAlign: 'left', justifyContent: 'flex-start', maxWidth: '100%' }}>
               <Typography component="h3" variant="h6" sx={{ fontSize: '1rem', overflowWrap: 'anywhere' }}>{candidature.titre}</Typography>

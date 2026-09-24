@@ -22,6 +22,7 @@ jest.mock('react-router-dom', () => ({
 jest.mock('../services/api', () => ({ candidaturesAPI: {
   getAll: jest.fn(), getById: jest.fn(), importUrl: jest.fn(),
   create: jest.fn(), update: jest.fn(), patch: jest.fn(), delete: jest.fn(), exportCsv: jest.fn(),
+  prepareEmails: jest.fn(),
 } }));
 
 jest.mock('../components/Candidatures/CandidatureKanban', () => ({ candidatures, onStatusChange }) => (
@@ -197,4 +198,85 @@ test('exporte en CSV avec les filtres actifs', async () => {
   expect(clickDownload).toHaveBeenCalled();
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:candidatures');
   clickDownload.mockRestore();
+});
+
+test('selectionne plusieurs candidatures et prepare des brouillons individuels sans envoi', async () => {
+  candidaturesAPI.getAll.mockResolvedValue({ data: [
+    { ...offre, id: 1, titre: 'Dev Django', entreprise: 'Entreprise A' },
+    { ...offre, id: 2, titre: 'Dev React', entreprise: 'Entreprise B' },
+  ] });
+  candidaturesAPI.prepareEmails.mockResolvedValue({ data: { emails: [
+    { id: 11, candidature: 1, recipient_email: 'a@example.com', status: 'draft' },
+    { id: 12, candidature: 2, recipient_email: 'b@example.com', status: 'draft' },
+  ] } });
+  renderPage();
+  await screen.findByRole('heading', { name: 'Dev React' });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev Django/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev React/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Preparer les emails/ }));
+  const dialog = screen.getByRole('dialog', { name: /Preparer les emails/ });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Formation/ }), { target: { value: 'Licence web' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Portfolio/ }), { target: { value: 'https://portfolio.example.com' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /GitHub/ }), { target: { value: 'https://github.com/example' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Destinataire - Entreprise A/ }), { target: { value: 'a@example.com' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Destinataire - Entreprise B/ }), { target: { value: 'b@example.com' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Creer les brouillons' }));
+  await waitFor(() => expect(candidaturesAPI.prepareEmails).toHaveBeenCalledWith({
+    formation: 'Licence web', portfolio_url: 'https://portfolio.example.com', github_url: 'https://github.com/example',
+    emails: [
+      expect.objectContaining({ candidature_id: 1, recipient_email: 'a@example.com' }),
+      expect.objectContaining({ candidature_id: 2, recipient_email: 'b@example.com' }),
+    ],
+  }));
+  expect(await screen.findByText('2 brouillons crees')).toBeInTheDocument();
+  expect(screen.getAllByText('Brouillon')).toHaveLength(2);
+  const links = screen.getAllByRole('link', { name: /Voir le brouillon/ });
+  expect(links).toHaveLength(2);
+  expect(links[0]).toHaveAttribute('href', '/candidatures/1?email_id=11');
+  expect(links[1]).toHaveAttribute('href', '/candidatures/2?email_id=12');
+  expect(links[0]).toHaveAttribute('target', '_blank');
+});
+
+test('affiche les erreurs de validation sur les candidatures concernees sans fermer la saisie', async () => {
+  candidaturesAPI.getAll.mockResolvedValue({ data: [
+    { ...offre, id: 1, titre: 'Dev Django', entreprise: 'Entreprise A' },
+    { ...offre, id: 2, titre: 'Dev React', entreprise: 'Entreprise B' },
+  ] });
+  candidaturesAPI.prepareEmails.mockRejectedValue({ response: { data: { row_errors: [
+    { index: 1, candidature_id: 2, errors: { recipient_email: ['Adresse e-mail invalide.'] } },
+  ] } } });
+  renderPage();
+  await screen.findByRole('heading', { name: 'Dev React' });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev Django/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev React/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Preparer les emails/ }));
+  const dialog = screen.getByRole('dialog', { name: /Preparer les emails/ });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Destinataire - Entreprise A/ }), { target: { value: 'a@example.com' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Destinataire - Entreprise B/ }), { target: { value: 'bad' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Creer les brouillons' }));
+  expect(await within(dialog).findByText('Adresse e-mail invalide.')).toBeInTheDocument();
+  expect(within(dialog).getByText('Entreprise B')).toBeInTheDocument();
+  expect(within(dialog).getByRole('textbox', { name: /Destinataire - Entreprise B/ })).toHaveValue('bad');
+  expect(screen.queryByText(/brouillons crees/)).not.toBeInTheDocument();
+});
+
+test('associe une erreur de civilite au bon champ de la bonne candidature', async () => {
+  candidaturesAPI.getAll.mockResolvedValue({ data: [
+    { ...offre, id: 1, titre: 'Dev Django', entreprise: 'Entreprise A' },
+    { ...offre, id: 2, titre: 'Dev React', entreprise: 'Entreprise B' },
+  ] });
+  candidaturesAPI.prepareEmails.mockRejectedValue({ response: { data: { row_errors: [
+    { index: 1, candidature_id: 2, errors: { civilite: ['30 caracteres maximum.'] } },
+  ] } } });
+  renderPage();
+  await screen.findByRole('heading', { name: 'Dev React' });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev Django/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev React/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Preparer les emails/ }));
+  const target = within(screen.getByRole('region', { name: 'Entreprise B' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Creer les brouillons' }));
+  expect(await target.findByText('30 caracteres maximum.')).toBeInTheDocument();
+  expect(target.getByRole('textbox', { name: 'Civilite' })).toHaveAttribute('aria-invalid', 'true');
+  expect(target.getByRole('textbox', { name: /Destinataire/ })).toHaveAttribute('aria-invalid', 'false');
+  expect(within(screen.getByRole('region', { name: 'Entreprise A' })).queryByText('30 caracteres maximum.')).not.toBeInTheDocument();
 });
