@@ -293,8 +293,8 @@ avec limite connue ; `[ ]` absent.
   (`confirmer_manuellement/`) ou creer un nouveau brouillon lie par `retry_of`
   (`nouvelle_tentative/`), avec avertissement du risque de doublon. Migration
   `api.0009` cree les metadonnees de reconciliation et la chaine lineaire de
-  tentatives ; elle reste a appliquer sur la base locale (`showmigrations` :
-  `[ ] 0009` apres fusion).
+  tentatives ; elle est appliquee sur la base locale (`showmigrations` :
+  `[X] 0009`).
   Si la reponse HTTP de l'envoi est perdue, le frontend relit le statut serveur
   et bloque tout nouvel envoi si cette verification echoue.
   Tests Gmail/HTTP entierement mocks : 226 tests backend et 111 tests frontend
@@ -325,6 +325,16 @@ avec limite connue ; `[ ]` absent.
   merges classiques sans conflit manuel ni squash. Verification de `main`
   apres fusion : 238 tests backend et 117 tests frontend (30 suites) reussis
   avec `npm test -- --watchAll=false`. Aucun push n'a ete effectue.
+  Correction apres essai manuel : le backend sur `main` utilisait encore la
+  base locale au schema `api.0008`, d'ou une erreur SQL de colonne absente
+  pendant la preparation en masse. `api.0009` a ete appliquee ; un test de
+  regression reproduit l'echec avant migration puis le succes apres migration.
+  En cas d'erreur serveur, le frontend indique de verifier les brouillons
+  existants avant de reessayer, ainsi que le terminal backend et les migrations.
+  Verification apres correction : 239 tests backend et 118 tests frontend
+  (30 suites) reussis. Une passe frontend intermediaire a eu cinq expirations
+  intermittentes a 5 s dans `CandidatureDetail.test.jsx`, non modifie ; cette
+  suite a ensuite passe seule (26/26), puis la suite complete a passe (118/118).
 
 ### Preferences et interface
 

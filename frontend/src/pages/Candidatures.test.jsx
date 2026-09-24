@@ -280,3 +280,23 @@ test('associe une erreur de civilite au bon champ de la bonne candidature', asyn
   expect(target.getByRole('textbox', { name: /Destinataire/ })).toHaveAttribute('aria-invalid', 'false');
   expect(within(screen.getByRole('region', { name: 'Entreprise A' })).queryByText('30 caracteres maximum.')).not.toBeInTheDocument();
 });
+
+test('signale une erreur 500 de preparation en masse avec une piste exploitable', async () => {
+  candidaturesAPI.getAll.mockResolvedValue({ data: [
+    { ...offre, id: 1, titre: 'Dev Django', entreprise: 'Entreprise A' },
+  ] });
+  candidaturesAPI.prepareEmails.mockRejectedValue({
+    response: { status: 500, data: '<!DOCTYPE html><html>Server Error</html>' },
+  });
+  renderPage();
+  await screen.findByRole('heading', { name: 'Dev Django' });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Selectionner Dev Django/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Preparer les emails/ }));
+  const dialog = screen.getByRole('dialog', { name: /Preparer les emails/ });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Creer les brouillons' }));
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Erreur du serveur (HTTP 500)');
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('avant de réessayer pour éviter les doublons');
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('migrations');
+  expect(within(dialog).getByRole('button', { name: 'Creer les brouillons' })).toBeEnabled();
+});

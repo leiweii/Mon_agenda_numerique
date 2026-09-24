@@ -1,8 +1,10 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.db import connection, ProgrammingError
+from django.db.migrations.executor import MigrationExecutor
 from rest_framework.authtoken.models import Token
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APITransactionTestCase
 
 from .models import Candidature, EmailCandidature
 
@@ -173,3 +175,36 @@ class PreparationEmailsMasseTests(APITestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertFalse(EmailCandidature.objects.exists())
+
+
+class PreparationEmailsMasseMigrationTests(APITransactionTestCase):
+    def test_bulk_creation_requires_migration_0009_on_existing_database(self):
+        old_schema = ('api', '0008_connexiongmail_tentativeoauthgmail')
+        current_schema = ('api', '0009_emailcandidature_manual_confirmation_retry')
+        MigrationExecutor(connection).migrate([old_schema])
+        try:
+            user = User.objects.create_user(username='bulk-migration-owner')
+            candidature = Candidature.objects.create(
+                utilisateur=user, url='https://example.com/bulk-migration',
+                titre='Developpeur Python', entreprise='Entreprise A',
+            )
+            self.client.force_authenticate(user=user)
+            payload = {
+                'formation': 'Licence professionnelle web',
+                'portfolio_url': 'https://portfolio.example.com',
+                'github_url': 'https://github.com/example',
+                'emails': [{'candidature_id': candidature.id, 'recipient_email': 'a@example.com'}],
+            }
+
+            with self.assertRaises(ProgrammingError) as failure:
+                self.client.post('/api/candidatures/preparer_emails/', payload, format='json')
+            self.assertIn('manual_confirmation_at', str(failure.exception))
+            self.assertFalse(EmailCandidature.objects.exists())
+        finally:
+            MigrationExecutor(connection).migrate([current_schema])
+
+        response = self.client.post('/api/candidatures/preparer_emails/', payload, format='json')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(response.data['emails']), 1)
+        self.assertEqual(response.data['emails'][0]['status'], 'draft')

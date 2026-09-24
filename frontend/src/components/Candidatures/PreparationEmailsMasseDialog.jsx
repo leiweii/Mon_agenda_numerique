@@ -49,6 +49,8 @@ export default function PreparationEmailsMasseDialog({ candidatures, onClose, on
         setCommonError('Aucun brouillon cree. Corrigez les candidatures signalees.');
       } else if (payload?.common_errors) {
         setCommonError(messages(payload.common_errors));
+      } else if (error?.response?.status >= 500) {
+        setCommonError(`Erreur du serveur (HTTP ${error.response.status}). Vérifiez les brouillons existants avant de réessayer pour éviter les doublons. Consultez le terminal du backend et les migrations.`);
       } else {
         setCommonError(extraireMessageErreur(error, 'Impossible de preparer les brouillons.'));
       }
