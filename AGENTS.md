@@ -243,9 +243,10 @@ avec limite connue ; `[ ]` absent.
   (25 suites) reussis. La commande Jest du projet s'execute en serie pour
   eviter les timeouts MUI/JSDOM lies a la saturation des workers. Le graphe
   des migrations `api` est coherent et aucun changement de modele non migre
-  n'est detecte. Les migrations `0003` a `0005` restent a appliquer sur la
-  base locale avec `python manage.py migrate`.
-- [x] Redesign de `/candidatures` sur une branche isolee issue de `main` :
+  n'est detecte. Les migrations `api.0001` a `0009` sont maintenant appliquees
+  sur la base locale.
+- [x] Redesign de `/candidatures`, developpe sur une branche isolee puis
+  fusionne dans `main` :
   compteurs calcules sur les candidatures affichees, recherche principale,
   filtres detailles repliables et cartes en une colonne. Ajout manuel, import
   URL, export CSV, selection multiple et Kanban restent disponibles. La liste
@@ -384,6 +385,11 @@ avec limite connue ; `[ ]` absent.
   fichier seul (27/27), puis la suite complete seule (121/121), ont passe.
   La cause exacte du timeout intermittent n'est pas etablie. Build frontend
   reussi avec l'avertissement de hook preexistant dans `TacheListe.jsx`.
+- [x] Le lot 7 et le redesign des candidatures sont fusionnes dans `main` par
+  merges classiques, sans squash. Verification du resultat combine : 246 tests
+  backend et 129 tests frontend (31 suites) reussis ; migrations `api.0001` a
+  `0009` appliquees et `makemigrations --check --dry-run` sans changement.
+  Aucun test n'envoie de vrai message Gmail.
 
 ### Preferences et interface
 
